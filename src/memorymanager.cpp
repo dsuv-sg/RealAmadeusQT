@@ -21,10 +21,6 @@ QString MemoryManager::getMemoryContext() const
 {
     QStringList lines;
 
-    QString name = m_memory.value("userName").toString();
-    if (!name.isEmpty())
-        lines << QString("【ユーザー情報】ユーザーの名前は「%1」。").arg(name);
-
     QJsonArray userFacts = m_memory.value("userFacts").toArray();
     if (!userFacts.isEmpty()) {
         lines << "【ユーザーについて知っていること】";

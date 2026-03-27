@@ -15,8 +15,16 @@ Item {
 
     property int  selectedIndex: 0
     property bool menuOpen: false
+    property var  backLog: null
 
-    property bool isSubPanelOpen: (configPanel ? (configPanel.visible || backLogPanelMenu.visible || statusPanelMenu.visible || changeLogPanel.visible || helpPanel.visible || confirmDialog.visible) : false)
+    // LLM Status for StatusPanel (passed from Main)
+    property string llmProvider: ""
+    property string llmModel: ""
+    property real   llmLatency: -1
+    property bool   isLoggedIn: false
+    property int    configLanguage: 0
+
+    property bool isSubPanelOpen: (configPanel ? (configPanel.visible || (root.backLog && root.backLog.visible) || statusPanelMenu.visible || changeLogPanel.visible || helpPanel.visible || confirmDialog.visible) : false)
 
     signal closeMenuRequested()
     signal logoutRequested()
@@ -189,6 +197,23 @@ Item {
         MenuLabel { itemIndex:8; text:"CLOSE\nMENU";  cx:405;  cy:950;  fontSize:26; textAlign: Text.AlignHCenter }
     }
 
+    // Block pointer input to the menu while any sub-panel is open.
+    MouseArea {
+        id: subPanelInputBlocker
+        anchors.fill: parent
+        z: 10
+        enabled: root.isSubPanelOpen
+        visible: enabled
+        acceptedButtons: Qt.AllButtons
+        preventStealing: true
+        hoverEnabled: true
+        onPressed: (mouse) => { mouse.accepted = true; }
+        onClicked: (mouse) => { mouse.accepted = true; }
+        onReleased: (mouse) => { mouse.accepted = true; }
+        onPositionChanged: (mouse) => { mouse.accepted = true; }
+        onWheel: (wheel) => { wheel.accepted = true; }
+    }
+
     // ─── Keyboard handler ───
     Item {
         id: menuFocus
@@ -237,7 +262,17 @@ Item {
         }
     }
 
-    function onBackLog()    { backLogPanelMenu.visible = true; backLogPanelMenu.forceActiveFocus(); }
+    function onBackLog() {
+        if (root.backLog) {
+            root.backLog.visible = true;
+            root.backLog.forceActiveFocus();
+            // Connect to restore focus when closed
+            var conn = root.backLog.closed.connect(function() {
+                menuFocus.forceActiveFocus();
+                root.backLog.closed.disconnect(conn);
+            });
+        }
+    }
     function onConfig()     { configPanel.visible = true; configPanel.forceActiveFocus(); }
     function onStatus()     { statusPanelMenu.visible = true; statusPanelMenu.forceActiveFocus(); }
     function onChangeLog()  { changeLogPanel.visible = true; changeLogPanel.forceActiveFocus(); }
@@ -252,7 +287,9 @@ Item {
         AppSettings.save();
     }
     function onLogout() {
-        confirmDialog.message = "ログアウトしますか？";
+        confirmDialog.message = root.configLanguage === 1
+            ? "Do you want to log out?"
+            : "ログアウトしますか？";
         confirmDialog.onYes = function() {
             MemoryManager.setUserName("");
             root.logoutRequested();
@@ -261,7 +298,9 @@ Item {
         confirmDialog.visible = true;
     }
     function onShutdown() {
-        confirmDialog.message = "リアルアマデウスを終了しますか？";
+        confirmDialog.message = root.configLanguage === 1
+            ? "Do you want to exit Real Amadeus?"
+            : "リアルアマデウスを終了しますか？";
         confirmDialog.onYes = function() { Qt.quit(); };
         confirmDialog.visible = true;
     }
@@ -269,31 +308,41 @@ Item {
     // ─── Sub-panels (restore focus on close) ───
     ConfigPanel {
         id: configPanel
+        z: 20
         anchors.fill: parent; visible: false
         onClosed: { menuFocus.forceActiveFocus(); }
-    }
-    BackLogPanel {
-        id: backLogPanelMenu
-        anchors.fill: parent; visible: false
-        onClosed: { menuFocus.forceActiveFocus(); }
+        configLanguage: root.configLanguage
     }
     StatusPanel {
         id: statusPanelMenu
+        z: 20
         anchors.fill: parent; visible: false
         onClosed: { menuFocus.forceActiveFocus(); }
+        
+        // Bind to MenuPanel's properties
+        llmProvider: root.llmProvider
+        llmModel:    root.llmModel
+        llmLatency:  root.llmLatency
+        isLoggedIn:  root.isLoggedIn
+        configLanguage: root.configLanguage
     }
     ChangeLogPanel {
         id: changeLogPanel
+        z: 20
         anchors.fill: parent; visible: false
         onClosed: { menuFocus.forceActiveFocus(); }
+        configLanguage: root.configLanguage
     }
     HelpPanel {
         id: helpPanel
+        z: 20
         anchors.fill: parent; visible: false
         onClosed: { menuFocus.forceActiveFocus(); }
+        configLanguage: root.configLanguage
     }
     ConfirmationDialog {
         id: confirmDialog
+        z: 30
         anchors.centerIn: parent; visible: false
         property string message: ""
         property var    onYes:   null

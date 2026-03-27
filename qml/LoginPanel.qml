@@ -6,6 +6,14 @@ Item {
     id: loginPanel
     signal loginAccepted()
 
+    function resetCredentials() {
+        idInput.text = ""
+        pwInput.text = ""
+        errorText.text = "ACCESS DENIED"
+        errorText.visible = false
+        idInput.forceActiveFocus()
+    }
+
     // ─── Design constants from Unity MCP data ───────────────────────
     // Canvas reference: 1920×1080
     // All Unity units map 1:1 to these reference pixels.
@@ -34,6 +42,8 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         anchors.verticalCenterOffset: -182 * sc
         source: "qrc:/qt/qml/RealAmadeusPC/resources/images/amadeus_logo_v3.png"
+        sourceSize.width: 700
+        sourceSize.height: 700
         fillMode: Image.PreserveAspectFit
     }
 
@@ -211,9 +221,6 @@ Item {
             errorText.visible = false
             MemoryManager.setUserName("Salieri")
             loginAccepted()
-        } else if (idInput.text.length === 0 || pwInput.text.length === 0) {
-            errorText.text = "ID AND PASSWORD REQUIRED"
-            errorText.visible = true
         } else {
             errorText.text = "ACCESS DENIED"
             errorText.visible = true
@@ -222,6 +229,6 @@ Item {
 
     // Focus form on appear
     Component.onCompleted: {
-        idInput.forceActiveFocus()
+        resetCredentials()
     }
 }

@@ -4,18 +4,29 @@
 #include <QIcon>
 #include <QQuickWindow>
 #include <QSGRendererInterface>
+#include <QSurfaceFormat>
 #include "src/appsettings.h"
 #include "src/memorymanager.h"
 #include "src/aiservice.h"
+#include "src/live2ditem.h"
+
+// ── Force discrete GPU on hybrid systems (NVIDIA Optimus / AMD PowerXpress) ──
+#ifdef _WIN32
+extern "C" {
+    __declspec(dllexport) unsigned long NvOptimusEnablement = 0x00000001;
+    __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
+}
+#endif
 
 int main(int argc, char *argv[])
 {
-    // ─── GPU acceleration: prefer hardware-accelerated backends ───
-    // D3D11 is the default on Windows, Vulkan/OpenGL fallback.
-    // Qt auto-selects the best available; set explicit preference here.
-    QQuickWindow::setGraphicsApi(QSGRendererInterface::Direct3D11);
-    // Uncomment below to force OpenGL if D3D11 not available:
-    // QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
+    QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
+
+    QSurfaceFormat format;
+    format.setVersion(3, 1);
+    format.setProfile(QSurfaceFormat::CompatibilityProfile);
+    format.setOption(QSurfaceFormat::DeprecatedFunctions, true);
+    QSurfaceFormat::setDefaultFormat(format);
 
     QApplication app(argc, argv);
     app.setApplicationName("RealAmadeus");
@@ -32,6 +43,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("AppSettings",    &settings);
     engine.rootContext()->setContextProperty("MemoryManager",  &memory);
     engine.rootContext()->setContextProperty("AIService",      &aiService);
+    qmlRegisterType<Live2DItem>("Amadeus.Live2D", 1, 0, "Live2DItem");
 
     QObject::connect(
         &engine,

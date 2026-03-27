@@ -8,6 +8,7 @@ Item {
     id: root
     signal closed()
     focus: true
+    property int configLanguage: 0
 
     // ─── Background ───
     Image {
@@ -67,10 +68,22 @@ Item {
                 Text { text: desc; color: "#E6E6E6"; font { family: "MS Mincho"; pixelSize: 28 } }
             }
 
-            HelpEntry { title: "Tab / 右クリック"; desc: "メニュー開閉" }
-            HelpEntry { title: "Backspace"; desc: "保存して閉じる" }
-            HelpEntry { title: "WASD / ↑←↓→"; desc: "項目選択" }
-            HelpEntry { title: "Enter"; desc: "決定 / 会話を進める" }
+            HelpEntry {
+                title: root.configLanguage === 1 ? "Tab / Right Click" : "Tab / 右クリック"
+                desc: root.configLanguage === 1 ? "Open/Close Menu" : "メニュー開閉"
+            }
+            HelpEntry {
+                title: "Backspace"
+                desc: root.configLanguage === 1 ? "Apply and Close" : "保存して閉じる"
+            }
+            HelpEntry {
+                title: root.configLanguage === 1 ? "WASD / Arrows" : "WASD / ↑←↓→"
+                desc: root.configLanguage === 1 ? "Navigate Items" : "項目選択"
+            }
+            HelpEntry {
+                title: "Enter"
+                desc: root.configLanguage === 1 ? "Select / Advance Conv." : "決定 / 会話を進める"
+            }
         }
     }
 
@@ -81,7 +94,7 @@ Item {
         anchors { right: parent.right; rightMargin: 100; bottom: parent.bottom; bottomMargin: 60 }
         Text {
             anchors.centerIn: parent
-            text: "閉じる"
+            text: root.configLanguage === 1 ? "Close" : "閉じる"
             color: "#FFFFFF"
             font { family: "MS Mincho"; pixelSize: 32 }
         }

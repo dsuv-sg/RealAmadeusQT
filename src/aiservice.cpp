@@ -9,18 +9,163 @@
 #include <QSettings>
 #include <QDebug>
 #include <QProcess>
+#include <QDateTime>
+#include <QDir>
+#include <QFileInfo>
+#include <QRandomGenerator>
+#include <QTimer>
+#include <QtConcurrent>
+
+#include <functional>
+#include <memory>
+
+namespace {
+constexpr int kVertexTokenCacheMinutes = 50;
+const char *kVertexRegions[] = {
+    "us-central1",
+    "us-west1",
+    "us-east4",
+    "asia-northeast1",
+    "northamerica-northeast1"
+};
+
+QStringList getVertexTargetRegions(const QString &preferredLocation)
+{
+    QStringList targets;
+    const QString preferred = preferredLocation.trimmed();
+    if (!preferred.isEmpty()) {
+        targets << preferred;
+    }
+
+    for (const char *region : kVertexRegions) {
+        const QString candidate = QString::fromUtf8(region);
+        if (!targets.contains(candidate)) {
+            targets << candidate;
+        }
+    }
+    return targets;
+}
+
+QString buildVertexUrl(const QString &projectId, const QString &location,
+                       const QString &model, const QString &method)
+{
+    if (location == "global") {
+        return QString("https://aiplatform.googleapis.com/v1/projects/%1"
+                       "/locations/global/publishers/google/models/%2:%3")
+            .arg(projectId, model, method);
+    }
+    return QString("https://%1-aiplatform.googleapis.com/v1/projects/%2"
+                   "/locations/%3/publishers/google/models/%4:%5")
+        .arg(location, projectId, location, model, method);
+}
+
+bool isVertexRetryableStatus(int statusCode)
+{
+    return statusCode == 429 || statusCode >= 500;
+}
+
+bool isValidGroqModel(const QString &model, bool allowCompound)
+{
+    if (model.contains("llama") ||
+        model.contains("mixtral") ||
+        model.contains("gemma") ||
+        model.contains("qwen") ||
+        model.contains("deepseek")) {
+        return true;
+    }
+    return allowCompound && model.contains("compound");
+}
+
+QString unescapeJsonLikeUnity(const QString &text)
+{
+    QString out = text;
+    out.replace("\\n", "\n");
+    out.replace("\\r", "\r");
+    out.replace("\\t", "\t");
+    out.replace("\\\"", "\"");
+    out.replace("\\\\", "\\");
+    return out;
+}
+
+int findClosingQuoteLikeUnity(const QString &json, int startAfterQuote)
+{
+    for (int i = startAfterQuote; i < json.size(); ++i) {
+        if (json.at(i) != '"') {
+            continue;
+        }
+
+        int backslashes = 0;
+        int j = i - 1;
+        while (j >= 0 && json.at(j) == '\\') {
+            ++backslashes;
+            --j;
+        }
+        if ((backslashes % 2) == 0) {
+            return i;
+        }
+    }
+    return json.size();
+}
+
+QStringList extractVertexStreamTokensLikeUnity(const QByteArray &chunk)
+{
+    const QString jsonChunk = QString::fromUtf8(chunk);
+    QStringList tokens;
+    int idx = 0;
+
+    while ((idx = jsonChunk.indexOf("\"text\":", idx)) >= 0) {
+        int start = jsonChunk.indexOf('"', idx + 7);
+        if (start < 0) {
+            break;
+        }
+        ++start;
+
+        const int end = findClosingQuoteLikeUnity(jsonChunk, start);
+        if (end > start) {
+            tokens.append(unescapeJsonLikeUnity(jsonChunk.mid(start, end - start)));
+            idx = end;
+        } else {
+            break;
+        }
+    }
+
+    return tokens;
+}
+
+QByteArray buildGroqCompoundBody(const QVariantList &messages, bool stream)
+{
+    QJsonArray msgs;
+    for (const QVariant &v : messages) {
+        const QVariantMap m = v.toMap();
+        QJsonObject obj;
+        obj["role"] = m.value("role").toString();
+        obj["content"] = m.value("content").toString();
+        msgs.append(obj);
+    }
+
+    QJsonObject body;
+    body["model"] = "groq/compound";
+    body["messages"] = msgs;
+    body["max_tokens"] = 2048;
+    body["temperature"] = 0.85;
+    if (stream) {
+        body["stream"] = true;
+    }
+    return QJsonDocument(body).toJson(QJsonDocument::Compact);
+}
+}
 
 // ─────────────────────────────────────────────────────
 // Constructor
 // ─────────────────────────────────────────────────────
 AIService::AIService(QObject *parent)
-    : QObject(parent)
+    : QObject(parent),
+      m_settings("RealAmadeus", "AmadeusSystem")
 {}
 
 bool AIService::isWebSearchEnabled() const
 {
-    QSettings s("RealAmadeus", "AmadeusSystem");
-    return s.value("Config_WebSearch", 0).toInt() == 1;
+    return m_settings.value("Config_WebSearch", 0).toInt() == 1;
 }
 
 // ─────────────────────────────────────────────────────
@@ -28,20 +173,87 @@ bool AIService::isWebSearchEnabled() const
 // ─────────────────────────────────────────────────────
 QString AIService::getApiKey(int provider) const
 {
-    QSettings s("RealAmadeus", "AmadeusSystem");
-    QString key = s.value(QString("Config_ApiKey_%1").arg(provider), "").toString();
+    QString key = m_settings.value(QString("Config_ApiKey_%1").arg(provider), "").toString();
     if (key.isEmpty())
-        key = s.value("Config_ApiKey", "").toString();
+        key = m_settings.value("Config_ApiKey", "").toString();
     return key;
 }
 
 QString AIService::getModel(int provider) const
 {
-    QSettings s("RealAmadeus", "AmadeusSystem");
-    QString model = s.value(QString("Config_ModelName_%1").arg(provider), "").toString();
+    QString model = m_settings.value(QString("Config_ModelName_%1").arg(provider), "").toString();
     if (model.isEmpty())
-        model = s.value("Config_ModelName", "").toString();
+        model = m_settings.value("Config_ModelName", "").toString();
     return model;
+}
+
+QString AIService::runGcloudAccessToken(const QString &gcloudPath) const
+{
+    QProcess proc;
+    proc.setProgram(gcloudPath);
+    proc.setArguments({"auth", "print-access-token"});
+    proc.setProcessChannelMode(QProcess::SeparateChannels);
+    proc.start();
+    if (!proc.waitForStarted(3000)) {
+        return {};
+    }
+    if (!proc.waitForFinished(10000)) {
+        proc.kill();
+        proc.waitForFinished(1000);
+        return {};
+    }
+
+    const QString output = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+    if (proc.exitStatus() == QProcess::NormalExit && proc.exitCode() == 0 && output.startsWith("ya29.")) {
+        return output;
+    }
+
+    return {};
+}
+
+QString AIService::getVertexAccessToken()
+{
+    if (!m_cachedVertexToken.isEmpty() && QDateTime::currentDateTimeUtc() < m_vertexTokenExpiry) {
+        return m_cachedVertexToken;
+    }
+
+    QStringList candidates;
+#ifdef Q_OS_WIN
+    candidates << "gcloud";
+
+    const QString localAppData = qEnvironmentVariable("LOCALAPPDATA");
+    if (!localAppData.isEmpty()) {
+        candidates << QDir(localAppData).filePath("Google/Cloud SDK/google-cloud-sdk/bin/gcloud.cmd");
+    }
+
+    const QString programFiles = qEnvironmentVariable("ProgramFiles");
+    if (!programFiles.isEmpty()) {
+        candidates << QDir(programFiles).filePath("Google/Cloud SDK/google-cloud-sdk/bin/gcloud.cmd");
+    }
+
+    const QString userProfile = qEnvironmentVariable("USERPROFILE");
+    if (!userProfile.isEmpty()) {
+        candidates << QDir(userProfile).filePath("AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/gcloud.cmd");
+    }
+#else
+    candidates << "gcloud" << "/usr/local/bin/gcloud" << "/usr/bin/gcloud";
+#endif
+
+    for (const QString &candidate : candidates) {
+        if (candidate != "gcloud" && !QFileInfo::exists(candidate)) {
+            continue;
+        }
+        const QString token = runGcloudAccessToken(candidate);
+        if (!token.isEmpty()) {
+            m_cachedVertexToken = token;
+            m_vertexTokenExpiry = QDateTime::currentDateTimeUtc().addSecs(kVertexTokenCacheMinutes * 60);
+            qInfo() << "[Vertex AI] Access token acquired via" << candidate
+                    << "cached for" << kVertexTokenCacheMinutes << "minutes.";
+            return m_cachedVertexToken;
+        }
+    }
+
+    return {};
 }
 
 QString AIService::escapeJson(const QString &s)
@@ -215,8 +427,7 @@ void AIService::processSSEData(const QByteArray &data, QByteArray &/*buf*/,
 // ─────────────────────────────────────────────────────
 void AIService::sendChat(const QVariantList &messages)
 {
-    QSettings s("RealAmadeus", "AmadeusSystem");
-    int provider = s.value("Config_ApiProvider", 0).toInt();
+    int provider = m_settings.value("Config_ApiProvider", 0).toInt();
     QString apiKey = getApiKey(provider);
     QString model  = getModel(provider);
     bool webSearch = isWebSearchEnabled();
@@ -259,37 +470,107 @@ void AIService::sendChat(const QVariantList &messages)
         break;
     }
     case PROVIDER_GROQ: {
-        if (model.isEmpty()) model = "qwen3-32b";
-        QString groqModel = (webSearch) ? "groq/compound" : model;
+        if (model.isEmpty() || !isValidGroqModel(model, true)) {
+            model = "qwen3-32b";
+        }
         req.setUrl(QUrl("https://api.groq.com/openai/v1/chat/completions"));
         req.setRawHeader("Authorization", ("Bearer " + apiKey).toUtf8());
         req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-        body = buildOpenAIBody(messages, groqModel, false, true);
+        if (webSearch) {
+            body = buildGroqCompoundBody(messages, false);
+        } else {
+            body = buildOpenAIBody(messages, model, false, true);
+        }
         break;
     }
     case PROVIDER_VERTEX: {
-        // Vertex: run gcloud to get token synchronously, then POST
-        QString projectId = s.value("Config_VertexProject", "").toString();
-        QString location  = s.value("Config_VertexLocation", "us-central1").toString();
-        if (model.isEmpty()) model = "gemini-2.0-flash-001";
+        // Vertex: mirror Unity flow (gcloud token with cache and path probing).
+        // Token acquisition is done asynchronously to avoid UI freezing.
+        QString projectId = m_settings.value("Config_VertexProject", "").toString();
+        QString location  = m_settings.value("Config_VertexLocation", "us-central1").toString();
+        const QString lowerModel = model.toLower();
+        QString vertexModel = model;
+        if (vertexModel.isEmpty() || lowerModel.startsWith("gpt")) {
+            vertexModel = "gemini-2.0-flash";
+        }
 
-        QProcess proc;
-        proc.start("gcloud", {"auth", "print-access-token"});
-        proc.waitForFinished(10000);
-        QString token = proc.readAllStandardOutput().trimmed();
-        if (token.isEmpty()) {
-            emit errorOccurred("Vertex AI: gcloudトークン取得失敗。gcloud auth loginしてください。");
+        if (projectId.trimmed().isEmpty()) {
+            emit errorOccurred("Vertex AI: Project ID が未設定です。Config_VertexProject を設定してください。");
             return;
         }
 
-        QString url = QString("https://%1-aiplatform.googleapis.com/v1/projects/%2"
-                              "/locations/%3/publishers/google/models/%4:generateContent")
-                          .arg(location, projectId, location, model);
-        req.setUrl(QUrl(url));
-        req.setRawHeader("Authorization", ("Bearer " + token).toUtf8());
-        req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-        body = buildGeminiBody(messages); // Vertex uses same format as Gemini
-        break;
+        // Acquire token asynchronously in background thread
+        const QByteArray vertexBody = buildGeminiBody(messages, webSearch);
+        auto tokenFuture = QtConcurrent::run([this]() { return getVertexAccessToken(); });
+
+        // Setup async handler when token is ready
+        auto watcher = new QFutureWatcher<QString>(this);
+        connect(watcher, &QFutureWatcher<QString>::finished, this, [this, watcher, projectId, vertexModel, location, vertexBody]() {
+            QString token = watcher->result();
+            watcher->deleteLater();
+
+            if (token.isEmpty()) {
+                // Fallback to manual key in Config when gcloud retrieval fails
+                token = getApiKey(PROVIDER_VERTEX);
+            }
+            if (token.isEmpty()) {
+                emit errorOccurred("Vertex AI: アクセストークンの取得に失敗しました。\n"
+                                   "gcloud CLI がインストールされ、gcloud auth login 済みか確認してください。");
+                return;
+            }
+
+            // Now execute the Vertex API call with obtained token
+            const QStringList targetRegions = getVertexTargetRegions(location);
+            auto regionIndex = std::make_shared<int>(0);
+            auto errors = std::make_shared<QStringList>();
+            auto attempt = std::make_shared<std::function<void()>>();
+
+            *attempt = [this, projectId, vertexModel, token, targetRegions, vertexBody, regionIndex, errors, attempt]() {
+                if (*regionIndex >= targetRegions.size()) {
+                    emit errorOccurred(QString("Vertex AI: All regions failed (%1). Errors: %2")
+                                           .arg(targetRegions.join(", "), errors->join("; ")));
+                    return;
+                }
+
+                const QString currentRegion = targetRegions.at(*regionIndex);
+                QNetworkRequest vertexReq;
+                vertexReq.setUrl(QUrl(buildVertexUrl(projectId, currentRegion, vertexModel, "generateContent")));
+                vertexReq.setRawHeader("Authorization", ("Bearer " + token).toUtf8());
+                vertexReq.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+                vertexReq.setTransferTimeout(60000);
+
+                QNetworkReply *vertexReply = m_nam.post(vertexReq, vertexBody);
+                connect(vertexReply, &QNetworkReply::finished, this,
+                        [this, vertexReply, currentRegion, targetRegions, regionIndex, errors, attempt]() {
+                    const int statusCode = vertexReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                    const QByteArray responseBody = vertexReply->readAll();
+                    const QNetworkReply::NetworkError netError = vertexReply->error();
+                    const QString netErrorText = vertexReply->errorString();
+                    vertexReply->deleteLater();
+
+                    if (netError == QNetworkReply::NoError) {
+                        emit responseReceived(extractGeminiResponse(responseBody));
+                        return;
+                    }
+
+                    if (isVertexRetryableStatus(statusCode)) {
+                        errors->append(QString("%1: %2").arg(currentRegion).arg(statusCode));
+                        ++(*regionIndex);
+
+                        const int jitterMs = QRandomGenerator::global()->bounded(100, 401);
+                        QTimer::singleShot(jitterMs, this, [attempt]() { (*attempt)(); });
+                        return;
+                    }
+
+                    emit errorOccurred(QString("Vertex AI Error (%1): %2\n%3")
+                                           .arg(currentRegion, netErrorText, QString::fromUtf8(responseBody)));
+                });
+            };
+
+            (*attempt)();
+        });
+        watcher->setFuture(tokenFuture);
+        return;
     }
     default:
         emit errorOccurred("Unknown provider.");
@@ -322,8 +603,7 @@ void AIService::sendChat(const QVariantList &messages)
 // ─────────────────────────────────────────────────────
 void AIService::sendChatStreaming(const QVariantList &messages)
 {
-    QSettings s("RealAmadeus", "AmadeusSystem");
-    int provider = s.value("Config_ApiProvider", 0).toInt();
+    int provider = m_settings.value("Config_ApiProvider", 0).toInt();
     QString apiKey = getApiKey(provider);
     QString model  = getModel(provider);
     bool webSearch = isWebSearchEnabled();
@@ -343,34 +623,154 @@ void AIService::sendChatStreaming(const QVariantList &messages)
     QByteArray body;
 
     if (provider == PROVIDER_GROQ) {
-        if (model.isEmpty()) model = "qwen3-32b";
-        QString groqModel = webSearch ? "groq/compound" : model;
+        if (model.isEmpty() || !isValidGroqModel(model, false)) {
+            model = "qwen3-32b";
+        }
         req.setUrl(QUrl("https://api.groq.com/openai/v1/chat/completions"));
         req.setRawHeader("Authorization", ("Bearer " + apiKey).toUtf8());
         req.setRawHeader("Accept", "text/event-stream");
         req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-        body = buildOpenAIBody(messages, groqModel, true, true);
+        if (webSearch) {
+            body = buildGroqCompoundBody(messages, true);
+        } else {
+            body = buildOpenAIBody(messages, model, true, true);
+        }
     } else {
-        // Vertex streaming
-        QProcess proc;
-        proc.start("gcloud", {"auth", "print-access-token"});
-        proc.waitForFinished(10000);
-        QString token = proc.readAllStandardOutput().trimmed();
-        if (token.isEmpty()) {
-            emit errorOccurred("Vertex AI: gcloudトークン取得失敗。");
+        // Vertex streaming - acquire token asynchronously to avoid UI freezing
+        QString projectId = m_settings.value("Config_VertexProject", "").toString();
+        if (projectId.trimmed().isEmpty()) {
+            emit errorOccurred("Vertex AI: Project ID が未設定です。Config_VertexProject を設定してください。");
             return;
         }
-        if (model.isEmpty()) model = "gemini-2.0-flash-001";
-        QString location  = s.value("Config_VertexLocation", "us-central1").toString();
-        QString projectId = s.value("Config_VertexProject", "").toString();
-        QString url = QString("https://%1-aiplatform.googleapis.com/v1/projects/%2"
-                              "/locations/%3/publishers/google/models/%4:streamGenerateContent?alt=sse")
-                          .arg(location, projectId, location, model);
-        req.setUrl(QUrl(url));
-        req.setRawHeader("Authorization", ("Bearer " + token).toUtf8());
-        req.setRawHeader("Accept", "text/event-stream");
-        req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-        body = buildGeminiBody(messages);
+        
+        QString location = m_settings.value("Config_VertexLocation", "us-central1").toString();
+        const QString lowerModel = model.toLower();
+        QString vertexModel = model;
+        if (vertexModel.isEmpty() || lowerModel.startsWith("gpt")) {
+            vertexModel = "gemini-2.0-flash";
+        }
+
+        // Build request body before token acquisition
+        const QByteArray vertexBody = buildGeminiBody(messages, webSearch);
+
+        // Get token asynchronously in background thread
+        auto tokenFuture = QtConcurrent::run([this]() { return getVertexAccessToken(); });
+
+        // Setup async handler when token is ready
+        auto watcher = new QFutureWatcher<QString>(this);
+        connect(watcher, &QFutureWatcher<QString>::finished, this, [this, watcher, projectId, vertexModel, location, vertexBody]() {
+            QString token = watcher->result();
+            watcher->deleteLater();
+
+            if (token.isEmpty()) {
+                token = getApiKey(PROVIDER_VERTEX);
+            }
+            if (token.isEmpty()) {
+                emit errorOccurred("Vertex AI: アクセストークンの取得に失敗しました。\n"
+                                   "gcloud CLI がインストールされ、gcloud auth login 済みか確認してください。");
+                return;
+            }
+
+            // Now execute the Vertex streaming API call with obtained token
+            const QStringList targetRegions = getVertexTargetRegions(location);
+            auto regionIndex = std::make_shared<int>(0);
+            auto errors = std::make_shared<QStringList>();
+            auto attempt = std::make_shared<std::function<void()>>();
+
+            *attempt = [this, projectId, vertexModel, token, targetRegions, vertexBody, regionIndex, errors, attempt]() {
+                if (*regionIndex >= targetRegions.size()) {
+                    emit errorOccurred(QString("Vertex AI Stream: All regions failed (%1). Errors: %2")
+                                           .arg(targetRegions.join(", "), errors->join("; ")));
+                    return;
+                }
+
+                const QString currentRegion = targetRegions.at(*regionIndex);
+                QNetworkRequest vertexReq;
+                vertexReq.setUrl(QUrl(buildVertexUrl(projectId, currentRegion, vertexModel, "streamGenerateContent")));
+                vertexReq.setRawHeader("Authorization", ("Bearer " + token).toUtf8());
+                vertexReq.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+                vertexReq.setTransferTimeout(120000);
+
+                QNetworkReply *vertexReply = m_nam.post(vertexReq, vertexBody);
+                auto fullResponse = std::make_shared<QString>();
+                auto rawBuffer = std::make_shared<QByteArray>();
+                auto lastProcessedIndex = std::make_shared<int>(0);
+                auto gotTokens = std::make_shared<bool>(false);
+
+                connect(vertexReply, &QNetworkReply::readyRead, this,
+                        [this, vertexReply, fullResponse, rawBuffer, lastProcessedIndex, gotTokens]() {
+                    *rawBuffer += vertexReply->readAll();
+
+                    if (rawBuffer->size() <= *lastProcessedIndex) {
+                        return;
+                    }
+
+                    const QByteArray newData = rawBuffer->mid(*lastProcessedIndex);
+                    *lastProcessedIndex = rawBuffer->size();
+                    *gotTokens = true;
+
+                    const QStringList tokens = extractVertexStreamTokensLikeUnity(newData);
+                    for (const QString &tok : tokens) {
+                        if (!tok.isEmpty()) {
+                            *fullResponse += tok;
+                            emit streamToken(tok);
+                        }
+                    }
+                });
+
+                connect(vertexReply, &QNetworkReply::finished, this,
+                        [this, vertexReply, currentRegion, regionIndex, errors, attempt, fullResponse, rawBuffer, lastProcessedIndex, gotTokens]() {
+                    *rawBuffer += vertexReply->readAll();
+
+                    if (rawBuffer->size() > *lastProcessedIndex) {
+                        const QByteArray remaining = rawBuffer->mid(*lastProcessedIndex);
+                        *lastProcessedIndex = rawBuffer->size();
+                        *gotTokens = true;
+
+                        const QStringList tokens = extractVertexStreamTokensLikeUnity(remaining);
+                        for (const QString &tok : tokens) {
+                            if (!tok.isEmpty()) {
+                                *fullResponse += tok;
+                                emit streamToken(tok);
+                            }
+                        }
+                    }
+
+                    const int statusCode = vertexReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                    const QByteArray responseBody = *rawBuffer;
+                    const QNetworkReply::NetworkError netError = vertexReply->error();
+                    const QString netErrorText = vertexReply->errorString();
+                    vertexReply->deleteLater();
+
+                    if (netError == QNetworkReply::NoError) {
+                        emit streamComplete(*fullResponse);
+                        return;
+                    }
+
+                    if (*gotTokens) {
+                        emit errorOccurred(QString("Vertex AI Stream Interrupted (%1): %2")
+                                               .arg(currentRegion, netErrorText));
+                        return;
+                    }
+
+                    if (isVertexRetryableStatus(statusCode)) {
+                        errors->append(QString("%1: %2").arg(currentRegion).arg(statusCode));
+                        ++(*regionIndex);
+
+                        const int jitterMs = QRandomGenerator::global()->bounded(100, 401);
+                        QTimer::singleShot(jitterMs, this, [attempt]() { (*attempt)(); });
+                        return;
+                    }
+
+                    emit errorOccurred(QString("Vertex AI Stream Error (%1): %2\n%3")
+                                           .arg(currentRegion, netErrorText, QString::fromUtf8(responseBody)));
+                });
+            };
+
+            (*attempt)();
+        });
+        watcher->setFuture(tokenFuture);
+        return;
     }
 
     req.setTransferTimeout(120000);
@@ -418,7 +818,7 @@ void AIService::sendChatStreaming(const QVariantList &messages)
         }
     });
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply, fullResponse, sseBuffer, isDone]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, fullResponse, sseBuffer, isDone, provider]() {
         reply->deleteLater();
         // process remaining buffer
         if (!sseBuffer->isEmpty()) {
@@ -427,7 +827,21 @@ void AIService::sendChatStreaming(const QVariantList &messages)
                 if (!line.startsWith("data: ")) continue;
                 QByteArray payload = line.mid(6).trimmed();
                 if (payload == "[DONE]") continue;
-                QString tok = extractStreamToken(payload);
+                QString tok;
+                if (provider == PROVIDER_GROQ) {
+                    tok = extractStreamToken(payload);
+                } else {
+                    QJsonDocument doc = QJsonDocument::fromJson(payload);
+                    if (doc.isObject()) {
+                        QJsonArray cands = doc.object()["candidates"].toArray();
+                        if (!cands.isEmpty()) {
+                            QJsonArray parts = cands[0].toObject()["content"].toObject()["parts"].toArray();
+                            if (!parts.isEmpty()) {
+                                tok = parts[0].toObject()["text"].toString();
+                            }
+                        }
+                    }
+                }
                 if (!tok.isEmpty()) { *fullResponse += tok; emit streamToken(tok); }
             }
         }

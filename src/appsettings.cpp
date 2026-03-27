@@ -10,9 +10,9 @@ int AppSettings::getInt(const QString &key, int defaultValue) const
     return m_settings.value(key, defaultValue).toInt();
 }
 
-float AppSettings::getFloat(const QString &key, float defaultValue) const
+double AppSettings::getFloat(const QString &key, double defaultValue) const
 {
-    return m_settings.value(key, (double)defaultValue).toFloat();
+    return m_settings.value(key, defaultValue).toDouble();
 }
 
 QString AppSettings::getString(const QString &key, const QString &defaultValue) const
@@ -26,9 +26,9 @@ void AppSettings::setInt(const QString &key, int value)
     emit settingsChanged(key);
 }
 
-void AppSettings::setFloat(const QString &key, float value)
+void AppSettings::setFloat(const QString &key, double value)
 {
-    m_settings.setValue(key, (double)value);
+    m_settings.setValue(key, value);
     emit settingsChanged(key);
 }
 

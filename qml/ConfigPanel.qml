@@ -12,18 +12,46 @@ Item {
 
     property int activeCategory: 0
     property int currentProviderIndex: AppSettings.getInt("Config_ApiProvider", 0)
+    property int displayLanguageIndex: AppSettings.getInt("Config_Language", 0)
+    property alias configLanguage: root.displayLanguageIndex
+    readonly property var languageOptions: ["日本語", "English"]
 
     // Per-provider key/model buffers ( mirrors ConfigPanelController's apiKeys dict )
     property var apiKeyBuffer:   ({})
     property var modelNameBuffer: ({})
 
-    readonly property var categoryNames: ["基本設定", "テキスト設定", "サウンド設定", "グラフィック設定", "API設定"]
+    readonly property var categoryNames: [
+        tr("基本設定", "General"),
+        tr("テキスト設定", "Text"),
+        tr("サウンド設定", "Sound"),
+        tr("グラフィック設定", "Graphics"),
+        tr("API設定", "API")
+    ]
     readonly property var providerNames: ["OpenAI", "Google Gemini", "Anthropic Claude", "Groq", "Vertex AI"]
+
+    function tr(ja, en) {
+        return displayLanguageIndex === 1 ? en : ja;
+    }
 
     Component.onCompleted: loadSettings()
 
+    Connections {
+        target: AppSettings
+        function onSettingsChanged(key) {
+            if (key === "Config_AutoMode") {
+                autoModeToggle.checked = AppSettings.getInt("Config_AutoMode", 0) === 1;
+                return;
+            }
+
+            if (key === "Config_AutoSpeed") {
+                autoSpeedRow.sliderValue = AppSettings.getFloat("Config_AutoSpeed", 3.0);
+            }
+        }
+    }
+
     function loadSettings() {
         currentProviderIndex = AppSettings.getInt("Config_ApiProvider", 0);
+        displayLanguageIndex = AppSettings.getInt("Config_Language", 0);
 
         for (var i = 0; i < providerNames.length; i++) {
             var k = AppSettings.getString("Config_ApiKey_" + i, "");
@@ -52,6 +80,7 @@ Item {
         resolutionCombo.currentIndex = AppSettings.getInt("Config_Resolution", 0);
         webSearchToggle.checked    = AppSettings.getInt("Config_WebSearch", 0) === 1;
         providerCombo.currentIndex = currentProviderIndex;
+        languageCombo.currentIndex = displayLanguageIndex;
         vertexProjectField.text    = AppSettings.getString("Config_VertexProject", "");
         vertexLocationField.text   = AppSettings.getString("Config_VertexLocation", "us-central1");
     }
@@ -72,6 +101,7 @@ Item {
         AppSettings.setInt("Config_ScreenMode",        screenModeCombo.currentIndex);
         AppSettings.setInt("Config_Resolution",        resolutionCombo.currentIndex);
         AppSettings.setInt("Config_ApiProvider",       providerCombo.currentIndex);
+        AppSettings.setInt("Config_Language",          languageCombo.currentIndex);
         AppSettings.setInt("Config_WebSearch",         webSearchToggle.checked  ? 1 : 0);
         AppSettings.setString("Config_VertexProject",  vertexProjectField.text);
         AppSettings.setString("Config_VertexLocation", vertexLocationField.text);
@@ -181,8 +211,16 @@ Item {
                         visible: root.activeCategory === 0
                         anchors { fill: parent; leftMargin: 40; rightMargin: 40 }
                         spacing: 15
-                        ConfigRow { label: "起動画面スキップ"; ConfigCheckBox { id: skipLoadingToggle } }
-                        ConfigRow { label: "右クリックメニュー"; ConfigCheckBox { id: rightClickToggle } }
+                        ConfigRow {
+                            label: root.tr("表示言語", "Display Language")
+                            ConfigComboBox {
+                                id: languageCombo
+                                model: root.languageOptions
+                                onCurrentIndexChanged: root.displayLanguageIndex = currentIndex
+                            }
+                        }
+                        ConfigRow { label: root.tr("起動画面スキップ", "Skip Loading Screen"); ConfigCheckBox { id: skipLoadingToggle } }
+                        ConfigRow { label: root.tr("右クリックメニュー", "Right Click Menu"); ConfigCheckBox { id: rightClickToggle } }
                         Item { Layout.fillHeight: true }
                     }
 
@@ -191,9 +229,9 @@ Item {
                         visible: root.activeCategory === 1
                         anchors { fill: parent; leftMargin: 40; rightMargin: 40 }
                         spacing: 15
-                        ConfigSliderRow { id: textSpeedRow;  label: "文字表示速度"; sliderFrom: 0.1; sliderTo: 3.0; sliderStep: 0.1 }
-                        ConfigRow { label: "オート表示"; ConfigCheckBox { id: autoModeToggle } }
-                        ConfigSliderRow { id: autoSpeedRow;  label: "オート待機時間"; sliderFrom: 1.0; sliderTo: 10.0; sliderStep: 0.1; showAsSeconds: true }
+                        ConfigSliderRow { id: textSpeedRow;  label: root.tr("文字表示速度", "Text Speed"); sliderFrom: 0.1; sliderTo: 3.0; sliderStep: 0.1 }
+                        ConfigRow { label: root.tr("オート表示", "Auto Mode"); ConfigCheckBox { id: autoModeToggle } }
+                        ConfigSliderRow { id: autoSpeedRow;  label: root.tr("オート待機時間", "Auto Wait Time"); sliderFrom: 1.0; sliderTo: 10.0; sliderStep: 0.1; showAsSeconds: true }
                         Item { Layout.fillHeight: true }
                     }
 
@@ -202,10 +240,10 @@ Item {
                         visible: root.activeCategory === 2
                         anchors { fill: parent; leftMargin: 40; rightMargin: 40 }
                         spacing: 15
-                        ConfigSliderRow { id: masterVolRow; label: "マスター音量"; sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
-                        ConfigSliderRow { id: bgmVolRow;    label: "BGM音量";     sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
-                        ConfigSliderRow { id: seVolRow;     label: "SE音量";      sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
-                        ConfigSliderRow { id: voiceVolRow;  label: "ボイス音量";   sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
+                        ConfigSliderRow { id: masterVolRow; label: root.tr("マスター音量", "Master Volume"); sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
+                        ConfigSliderRow { id: bgmVolRow;    label: root.tr("BGM音量", "BGM Volume"); sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
+                        ConfigSliderRow { id: seVolRow;     label: root.tr("SE音量", "SE Volume"); sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
+                        ConfigSliderRow { id: voiceVolRow;  label: root.tr("ボイス音量", "Voice Volume"); sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
                         Item { Layout.fillHeight: true }
                     }
 
@@ -214,8 +252,16 @@ Item {
                         visible: root.activeCategory === 3
                         anchors { fill: parent; leftMargin: 40; rightMargin: 40 }
                         spacing: 15
-                        ConfigRow { label: "画面モード"; ConfigComboBox { id: screenModeCombo; model: ["フルスクリーン", "ウィンドウ"] } }
-                        ConfigRow { label: "解像度"; ConfigComboBox { id: resolutionCombo; model: ["1920x1080", "1600x900", "1280x720"] } }
+                        ConfigRow { 
+                            label: root.tr("画面モード", "Screen Mode")
+                            ConfigComboBox { 
+                                id: screenModeCombo
+                                model: ["Fullscreen", "Windowed"]  // Static model to prevent language-change triggers
+                                // Display localized text without changing model
+                                displayText: screenModeCombo.currentIndex === 0 ? root.tr("フルスクリーン", "Fullscreen") : root.tr("ウィンドウ", "Windowed")
+                            }
+                        }
+                        ConfigRow { label: root.tr("解像度", "Resolution"); ConfigComboBox { id: resolutionCombo; model: ["1920x1080", "1600x900", "1280x720"] } }
                         Item { Layout.fillHeight: true }
                     }
 
@@ -225,10 +271,10 @@ Item {
                         visible: root.activeCategory === 4
                         anchors { fill: parent; leftMargin: 40; rightMargin: 40 }
                         spacing: 0
-                        ConfigRow { label: "LLM APIプロバイダ"; ConfigComboBox { id: providerCombo; model: root.providerNames; onCurrentIndexChanged: root.onProviderChanged(currentIndex) } }
+                        ConfigRow { label: root.tr("LLM APIプロバイダ", "LLM API Provider"); ConfigComboBox { id: providerCombo; model: root.providerNames; onCurrentIndexChanged: root.onProviderChanged(currentIndex) } }
                         ConfigRow { label: "APIキー"; visible: providerCombo.currentIndex !== 4; ConfigTextField { id: apiKeyField; echoMode: TextField.Password } }
-                        ConfigRow { label: "LLM モデル名"; ConfigTextField { id: modelNameField } }
-                        ConfigRow { label: "LLM Web検索"; ConfigCheckBox { id: webSearchToggle } }
+                        ConfigRow { label: root.tr("LLM モデル名", "LLM Model Name"); ConfigTextField { id: modelNameField } }
+                        ConfigRow { label: root.tr("LLM Web検索", "LLM Web Search"); ConfigCheckBox { id: webSearchToggle } }
                         ConfigRow { label: "Vertex Project ID"; visible: providerCombo.currentIndex === 4; ConfigTextField { id: vertexProjectField } }
                         ConfigRow { label: "VertexLocation"; visible: providerCombo.currentIndex === 4; ConfigTextField { id: vertexLocationField } }
                         // Unity: VertexInfoText row (info text, no control)
@@ -236,7 +282,7 @@ Item {
                             visible: providerCombo.currentIndex === 4
                             Layout.preferredHeight: 100
                             Layout.fillWidth: true
-                            text: "※ Vertexを使用するためには、gCloud CLIのインストールが必要です。"
+                            text: root.tr("※ Vertexを使用するためには、gCloud CLIのインストールが必要です。", "* gCloud CLI is required to use Vertex.")
                             color: "#FFFFFF"
                             font { family: "MS Mincho"; pixelSize: 24 }
                             verticalAlignment: Text.AlignVCenter
@@ -258,7 +304,7 @@ Item {
             width: 210; height: 70
             color: "#4D4D4D"
             Text {
-                anchors.centerIn: parent; text: "キャンセル"
+                anchors.centerIn: parent; text: root.tr("キャンセル", "Cancel")
                 color: "#FFFFFF"
                 font { family: "MS Mincho"; pixelSize: 32 }
             }
@@ -272,7 +318,7 @@ Item {
             width: 260; height: 70
             color: "#FF9900"
             Text {
-                anchors.centerIn: parent; text: "適用"
+                anchors.centerIn: parent; text: root.tr("適用", "Apply")
                 color: "#FFFFFF"
                 font { family: "MS Mincho"; pixelSize: 32 }
             }

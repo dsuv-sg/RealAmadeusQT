@@ -1,9 +1,11 @@
 #pragma once
 #include <QObject>
 #include <QNetworkAccessManager>
+#include <QSettings>
 #include <QStringList>
 #include <QVariantList>
 #include <QVariantMap>
+#include <QDateTime>
 
 /// AIService - mirrors Unity AIService.cs
 /// Supports OpenAI / Gemini / Claude / Groq (+ Groq Compound) / Vertex AI
@@ -47,6 +49,8 @@ private:
     static QString escapeJson(const QString &s);
     QString getApiKey(int provider) const;
     QString getModel(int provider) const;
+    QString getVertexAccessToken();
+    QString runGcloudAccessToken(const QString &gcloudPath) const;
 
     // ─── SSE streaming processor ───
     void processSSEData(const QByteArray &data, QByteArray &buffer,
@@ -54,6 +58,9 @@ private:
 
     QNetworkAccessManager m_nam;
     QByteArray m_streamBuffer; // for streaming reply
+    QString m_cachedVertexToken;
+    QDateTime m_vertexTokenExpiry;
+    QSettings m_settings;
 
     static constexpr int PROVIDER_OPENAI  = 0;
     static constexpr int PROVIDER_GEMINI  = 1;

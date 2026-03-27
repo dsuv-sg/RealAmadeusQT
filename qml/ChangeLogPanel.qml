@@ -9,6 +9,8 @@ Item {
     signal closed()
     focus: true
 
+    property int configLanguage: 0
+
     // ─── Background ───
     Image {
         id: backgroundImage
@@ -65,11 +67,11 @@ Item {
             bottomPadding: 0
 
             background: Rectangle {
-                color: "#FF9900"
+                color: "#FFFFFF"
             }
             contentItem: Rectangle {
                 implicitWidth: 10
-                color: "#FFFFFF"
+                color: "#FF9900"
             }
         }
         Flickable {
@@ -92,7 +94,7 @@ Item {
 
                         Text {
                             y: 4
-                            text: "Version 1. 1"
+                            text: "Version 1.1Q"
                             color: "#FF9900"
                             font.family: "MS Mincho"
                             font.pixelSize: 36
@@ -105,7 +107,7 @@ Item {
                         Text {
                             x: 450
                             y: 12
-                            text: "2026. 03. 21"
+                            text: "2026. 03. 27"
                             color: "#808080"
                             font.family: "MS Mincho"
                             font.pixelSize: 28
@@ -123,7 +125,14 @@ Item {
                     Text {
                         topPadding: 10
                         width: logScroll.width
-                        text: "メニュー画面のクリック選択を実装しました。\n" +
+                        text: root.configLanguage === 1
+                            ? "- Implemented click selection for the menu screen.\n" +
+                              "- Added language switching between Japanese and English.\n" +
+                              "- Added [Close/Cancel/Apply] buttons to various screens.\n" +
+                              "- Implemented scrollbars for ChangeLog and BackLog.\n" +
+                              "- Updated UI elements for better visibility.\n" +
+                              "- Started release of the lightweight version."
+                            : "メニュー画面のクリック選択を実装しました。\n" +
                               "日本語/英語の言語切り替えを実装しました。\n" +
                               "各種画面に[閉じる/キャンセル/適用]ボタンを実装しました。\n" +
                               "チェンジログ/バックログ用に、スクロールバーを実装しました。\n" +
@@ -137,7 +146,6 @@ Item {
                         lineHeight: 42
                         horizontalAlignment: Text.AlignLeft
                         verticalAlignment: Text.AlignTop
-
                     }
                 }
 
@@ -150,7 +158,7 @@ Item {
 
                         Text {
                             y: 4
-                            text: "Version 1. 0 .1"
+                            text: "Version 1.0.1"
                             color: "#FF9900"
                             font.family: "MS Mincho"
                             font.pixelSize: 36
@@ -181,7 +189,12 @@ Item {
                     Text {
                         topPadding: 10
                         width: logScroll.width
-                        text: "GPU使用率が異常に高くなってしまう問題を修正しました。\n" +
+                        text: root.configLanguage === 1
+                            ? "- Fixed an issue where GPU usage was abnormally high.\n" +
+                              "- Fixed a window scaling issue when minimizing in fullscreen.\n" +
+                              "- Fixed an issue where re-logging in after logout was impossible.\n" +
+                              "- Fixed a bug where emotion tags were appearing for some AI services."
+                            : "GPU使用率が異常に高くなってしまう問題を修正しました。\n" +
                               "フルスクリーン状態での最小化時に、ウィンドウが異常に小さくなってしまう問題を修正しました。\n" +
                               "ログアウト後の再ログインが不可能になってしまう問題を修正しました。\n" +
                               "一部AIサービスの利用時にて、感情タグが表示されてしまう問題を修正しました。"
@@ -207,7 +220,7 @@ Item {
 
                         Text {
                             y: 4
-                            text: "Version 1. 0"
+                            text: "Version 1.0"
                             color: "#FF9900"
                             font.family: "MS Mincho"
                             font.pixelSize: 36
@@ -238,7 +251,10 @@ Item {
                     Text {
                         topPadding: 10
                         width: logScroll.width
-                        text: "リアルアマデウスの最初のバージョンをリリースしました。\n" +
+                        text: root.configLanguage === 1
+                            ? "- Released the first version of Real Amadeus.\n" +
+                              "- Includes basic conversation features."
+                            : "リアルアマデウスの最初のバージョンをリリースしました。\n" +
                               "基本的な会話機能のみを備えています。"
                         color: "#FFFFFF"
                         font.family: "MS Mincho"
@@ -262,7 +278,7 @@ Item {
         anchors { right: parent.right; rightMargin: 100; bottom: parent.bottom; bottomMargin: 60 }
         Text {
             anchors.centerIn: parent
-            text: "閉じる"
+            text: root.configLanguage === 1 ? "Close" : "閉じる"
             color: "#FFFFFF"
             font { family: "MS Mincho"; pixelSize: 32 }
         }

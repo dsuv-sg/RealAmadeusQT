@@ -80,3 +80,4 @@ CMakeLists.txt.user*
 .rcc/
 .uic/
 /build*/
+/third_party/CubismSdkForNative-5-r.4.1/
