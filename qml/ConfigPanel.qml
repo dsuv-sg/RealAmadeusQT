@@ -1,0 +1,536 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import QtQuick.Effects
+
+/// ConfigPanel - mirrors ConfigPanelController.cs
+/// 5 categories: 基本設定(0) テキスト(1) サウンド(2) グラフィック(3) API(4)
+Item {
+    id: root
+    signal closed()
+    focus: true
+
+    property int activeCategory: 0
+    property int currentProviderIndex: AppSettings.getInt("Config_ApiProvider", 0)
+
+    // Per-provider key/model buffers ( mirrors ConfigPanelController's apiKeys dict )
+    property var apiKeyBuffer:   ({})
+    property var modelNameBuffer: ({})
+
+    readonly property var categoryNames: ["基本設定", "テキスト設定", "サウンド設定", "グラフィック設定", "API設定"]
+    readonly property var providerNames: ["OpenAI", "Google Gemini", "Anthropic Claude", "Groq", "Vertex AI"]
+
+    Component.onCompleted: loadSettings()
+
+    function loadSettings() {
+        currentProviderIndex = AppSettings.getInt("Config_ApiProvider", 0);
+
+        for (var i = 0; i < providerNames.length; i++) {
+            var k = AppSettings.getString("Config_ApiKey_" + i, "");
+            if (k === "" && i === currentProviderIndex)
+                k = AppSettings.getString("Config_ApiKey", "");
+            apiKeyBuffer[i] = k;
+
+            var m = AppSettings.getString("Config_ModelName_" + i, "");
+            if (m === "" && i === currentProviderIndex)
+                m = AppSettings.getString("Config_ModelName", "");
+            modelNameBuffer[i] = m;
+        }
+        apiKeyField.text   = apiKeyBuffer[currentProviderIndex] || "";
+        modelNameField.text = modelNameBuffer[currentProviderIndex] || "";
+
+        skipLoadingToggle.checked  = AppSettings.getInt("Config_SkipLoading", 0) === 1;
+        rightClickToggle.checked   = AppSettings.getInt("Config_RightClickMenu", 1) === 1;
+        textSpeedRow.sliderValue   = AppSettings.getFloat("Config_TextSpeed", 1.0);
+        autoSpeedRow.sliderValue   = AppSettings.getFloat("Config_AutoSpeed", 3.0);
+        autoModeToggle.checked     = AppSettings.getInt("Config_AutoMode", 0) === 1;
+        masterVolRow.sliderValue   = AppSettings.getFloat("Config_MasterVol", 1.0);
+        bgmVolRow.sliderValue      = AppSettings.getFloat("Config_BGMVol", 0.8);
+        seVolRow.sliderValue       = AppSettings.getFloat("Config_SEVol", 1.0);
+        voiceVolRow.sliderValue    = AppSettings.getFloat("Config_VoiceVol", 1.0);
+        screenModeCombo.currentIndex = AppSettings.getInt("Config_ScreenMode", 0);
+        resolutionCombo.currentIndex = AppSettings.getInt("Config_Resolution", 0);
+        webSearchToggle.checked    = AppSettings.getInt("Config_WebSearch", 0) === 1;
+        providerCombo.currentIndex = currentProviderIndex;
+        vertexProjectField.text    = AppSettings.getString("Config_VertexProject", "");
+        vertexLocationField.text   = AppSettings.getString("Config_VertexLocation", "us-central1");
+    }
+
+    function saveSettings() {
+        apiKeyBuffer[currentProviderIndex]   = apiKeyField.text;
+        modelNameBuffer[currentProviderIndex] = modelNameField.text;
+
+        AppSettings.setInt("Config_SkipLoading",       skipLoadingToggle.checked ? 1 : 0);
+        AppSettings.setInt("Config_RightClickMenu",    rightClickToggle.checked  ? 1 : 0);
+        AppSettings.setFloat("Config_TextSpeed",       textSpeedRow.sliderValue);
+        AppSettings.setFloat("Config_AutoSpeed",       autoSpeedRow.sliderValue);
+        AppSettings.setInt("Config_AutoMode",          autoModeToggle.checked  ? 1 : 0);
+        AppSettings.setFloat("Config_MasterVol",       masterVolRow.sliderValue);
+        AppSettings.setFloat("Config_BGMVol",          bgmVolRow.sliderValue);
+        AppSettings.setFloat("Config_SEVol",           seVolRow.sliderValue);
+        AppSettings.setFloat("Config_VoiceVol",        voiceVolRow.sliderValue);
+        AppSettings.setInt("Config_ScreenMode",        screenModeCombo.currentIndex);
+        AppSettings.setInt("Config_Resolution",        resolutionCombo.currentIndex);
+        AppSettings.setInt("Config_ApiProvider",       providerCombo.currentIndex);
+        AppSettings.setInt("Config_WebSearch",         webSearchToggle.checked  ? 1 : 0);
+        AppSettings.setString("Config_VertexProject",  vertexProjectField.text);
+        AppSettings.setString("Config_VertexLocation", vertexLocationField.text);
+
+        for (var i = 0; i < providerNames.length; i++) {
+            AppSettings.setString("Config_ApiKey_"   + i, apiKeyBuffer[i] || "");
+            AppSettings.setString("Config_ModelName_" + i, modelNameBuffer[i] || "");
+        }
+        AppSettings.setString("Config_ApiKey",   apiKeyBuffer[currentProviderIndex] || "");
+        AppSettings.setString("Config_ModelName", modelNameBuffer[currentProviderIndex] || "");
+        AppSettings.save();
+    }
+
+    function onProviderChanged(newIdx) {
+        apiKeyBuffer[currentProviderIndex]   = apiKeyField.text;
+        modelNameBuffer[currentProviderIndex] = modelNameField.text;
+        currentProviderIndex = newIdx;
+        apiKeyField.text    = apiKeyBuffer[newIdx] || "";
+        modelNameField.text = modelNameBuffer[newIdx] || "";
+    }
+
+    // ─── Background ───
+    Image {
+        anchors.fill: parent
+        source: "qrc:/qt/qml/RealAmadeusPC/resources/images/Amadeus_BG.png"
+        fillMode: Image.Stretch
+    }
+
+    // ─── Main Content Wrapper ───
+    Item {
+        id: mainWrapper
+        anchors.fill: parent
+
+        // Main CONFIG Label
+        Text {
+            id: configTitle
+            anchors { top: parent.top; left: parent.left; topMargin: 55; leftMargin: 22 }
+            width: 400
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            text: "CONFIG"
+            color: "#FF9900"
+            font { family: "MS Mincho"; pixelSize: 90 }
+        }
+
+        // Sidebar area
+        Column {
+            id: sidebarCol
+            anchors { left: parent.left; top: parent.top; topMargin: 200; leftMargin: 20 }
+            spacing: 15
+
+            Repeater {
+                model: root.categoryNames
+                delegate: Rectangle {
+                    width: 400; height: 100
+                    color: "#333333"
+                    Text {
+                        anchors.centerIn: parent
+                        text: modelData
+                        color: "#FF9900"
+                        font { family: "MS Mincho"; pixelSize: 36 }
+                    }
+                    MouseArea { anchors.fill: parent; onClicked: root.activeCategory = index }
+                    border.color: index === root.activeCategory ? "#ffffff" : "transparent"
+                    border.width: 2
+                }
+            }
+        }
+
+        // ─── Content Area ───
+        Item {
+            id: contentArea
+            anchors { left: parent.left; leftMargin: 430; top: parent.top; topMargin: 40; right: parent.right; rightMargin: 210; bottom: parent.bottom }
+
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: 20
+
+                // Category Header
+                Item {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 80
+                    Text {
+                        anchors { left: parent.left; leftMargin: 40; verticalCenter: parent.verticalCenter }
+                        text: root.categoryNames[root.activeCategory]
+                        color: "#FF9900"
+                        font { family: "MS Mincho"; pixelSize: 48 }
+                    }
+                }
+
+                Rectangle {
+                    Layout.preferredHeight: 2
+                    Layout.leftMargin: 40
+                    Layout.rightMargin: 40
+                    Layout.fillWidth: true
+                    color: "#FF9900"
+                }
+
+                // Category Pages (Unity: VerticalLayoutGroup spacing=15)
+                Item {
+                    id: pagesContainer
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+
+                    // ── 基本設定 ──
+                    ColumnLayout {
+                        visible: root.activeCategory === 0
+                        anchors { fill: parent; leftMargin: 40; rightMargin: 40 }
+                        spacing: 15
+                        ConfigRow { label: "起動画面スキップ"; ConfigCheckBox { id: skipLoadingToggle } }
+                        ConfigRow { label: "右クリックメニュー"; ConfigCheckBox { id: rightClickToggle } }
+                        Item { Layout.fillHeight: true }
+                    }
+
+                    // ── テキスト設定 ──
+                    ColumnLayout {
+                        visible: root.activeCategory === 1
+                        anchors { fill: parent; leftMargin: 40; rightMargin: 40 }
+                        spacing: 15
+                        ConfigSliderRow { id: textSpeedRow;  label: "文字表示速度"; sliderFrom: 0.1; sliderTo: 3.0; sliderStep: 0.1 }
+                        ConfigRow { label: "オート表示"; ConfigCheckBox { id: autoModeToggle } }
+                        ConfigSliderRow { id: autoSpeedRow;  label: "オート待機時間"; sliderFrom: 1.0; sliderTo: 10.0; sliderStep: 0.1; showAsSeconds: true }
+                        Item { Layout.fillHeight: true }
+                    }
+
+                    // ── サウンド設定 ──
+                    ColumnLayout {
+                        visible: root.activeCategory === 2
+                        anchors { fill: parent; leftMargin: 40; rightMargin: 40 }
+                        spacing: 15
+                        ConfigSliderRow { id: masterVolRow; label: "マスター音量"; sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
+                        ConfigSliderRow { id: bgmVolRow;    label: "BGM音量";     sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
+                        ConfigSliderRow { id: seVolRow;     label: "SE音量";      sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
+                        ConfigSliderRow { id: voiceVolRow;  label: "ボイス音量";   sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
+                        Item { Layout.fillHeight: true }
+                    }
+
+                    // ── グラフィック設定 ──
+                    ColumnLayout {
+                        visible: root.activeCategory === 3
+                        anchors { fill: parent; leftMargin: 40; rightMargin: 40 }
+                        spacing: 15
+                        ConfigRow { label: "画面モード"; ConfigComboBox { id: screenModeCombo; model: ["フルスクリーン", "ウィンドウ"] } }
+                        ConfigRow { label: "解像度"; ConfigComboBox { id: resolutionCombo; model: ["1920x1080", "1600x900", "1280x720"] } }
+                        Item { Layout.fillHeight: true }
+                    }
+
+                    // ── API設定 ──
+                    // Unity Page_API VLG spacing=0 (different from other pages!)
+                    ColumnLayout {
+                        visible: root.activeCategory === 4
+                        anchors { fill: parent; leftMargin: 40; rightMargin: 40 }
+                        spacing: 0
+                        ConfigRow { label: "LLM APIプロバイダ"; ConfigComboBox { id: providerCombo; model: root.providerNames; onCurrentIndexChanged: root.onProviderChanged(currentIndex) } }
+                        ConfigRow { label: "APIキー"; visible: providerCombo.currentIndex !== 4; ConfigTextField { id: apiKeyField; echoMode: TextField.Password } }
+                        ConfigRow { label: "LLM モデル名"; ConfigTextField { id: modelNameField } }
+                        ConfigRow { label: "LLM Web検索"; ConfigCheckBox { id: webSearchToggle } }
+                        ConfigRow { label: "Vertex Project ID"; visible: providerCombo.currentIndex === 4; ConfigTextField { id: vertexProjectField } }
+                        ConfigRow { label: "VertexLocation"; visible: providerCombo.currentIndex === 4; ConfigTextField { id: vertexLocationField } }
+                        // Unity: VertexInfoText row (info text, no control)
+                        Text {
+                            visible: providerCombo.currentIndex === 4
+                            Layout.preferredHeight: 100
+                            Layout.fillWidth: true
+                            text: "※ Vertexを使用するためには、gCloud CLIのインストールが必要です。"
+                            color: "#FFFFFF"
+                            font { family: "MS Mincho"; pixelSize: 24 }
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        Item { Layout.fillHeight: true }
+                    }
+                }
+            }
+        }
+    }
+
+    // ─── Footer buttons ───
+    Row {
+        id: footerRow
+        anchors { right: parent.right; rightMargin: 100; bottom: parent.bottom; bottomMargin: 60 }
+        spacing: 50
+
+        Rectangle {
+            width: 210; height: 70
+            color: "#4D4D4D"
+            Text {
+                anchors.centerIn: parent; text: "キャンセル"
+                color: "#FFFFFF"
+                font { family: "MS Mincho"; pixelSize: 32 }
+            }
+            MouseArea {
+                anchors.fill: parent
+                onClicked: root.closed()
+            }
+        }
+
+        Rectangle {
+            width: 260; height: 70
+            color: "#FF9900"
+            Text {
+                anchors.centerIn: parent; text: "適用"
+                color: "#FFFFFF"
+                font { family: "MS Mincho"; pixelSize: 32 }
+            }
+            MouseArea {
+                anchors.fill: parent
+                onClicked: { root.saveSettings(); root.closed(); }
+            }
+        }
+    }
+
+    Keys.onPressed: (event) => {
+        if (event.key === Qt.Key_Backspace) {
+            root.saveSettings(); root.closed(); event.accepted = true;
+            return;
+        }
+
+        var up   = (event.key === Qt.Key_W || event.key === Qt.Key_Up);
+        var down = (event.key === Qt.Key_S || event.key === Qt.Key_Down);
+        if (up || down) {
+            var next = root.activeCategory + (up ? -1 : 1);
+            if (next < 0) next = root.categoryNames.length - 1;
+            if (next >= root.categoryNames.length) next = 0;
+            root.activeCategory = next;
+            event.accepted = true;
+        }
+    }
+
+    // ─── Fade ───
+    opacity: 0
+    onVisibleChanged: { if (visible) { root.opacity = 0; loadSettings(); Qt.callLater(function(){ root.opacity = 1; }); } }
+    Behavior on opacity { NumberAnimation { duration: 250 } }
+
+    onClosed: {
+        root.opacity = 0;
+        closeTimer.start();
+    }
+    Timer {
+        id: closeTimer
+        interval: 250
+        onTriggered: root.visible = false
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  Inline component definitions — match Unity exactly
+    // ═══════════════════════════════════════════════════════════════
+
+    // ── ConfigRow ──
+    // Unity: HorizontalLayoutGroup spacing=300, 1200×100, childControlWidth=false
+    // Label RectTransform width=100, control starts at 100+300=400
+    component ConfigRow: RowLayout {
+        property string label: ""
+        default property alias content: holder.data
+        Layout.preferredHeight: 100
+        Layout.fillWidth: true
+        spacing: 300
+        Text {
+            text: label
+            color: "#FFFFFF"
+            font { family: "MS Mincho"; pixelSize: 24 }
+            Layout.preferredWidth: 100
+            Layout.minimumWidth: 100
+            Layout.alignment: Qt.AlignVCenter
+        }
+        Item {
+            id: holder
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignVCenter
+            implicitHeight: 40
+        }
+    }
+
+    // ── ConfigCheckBox ──
+    // Unity Toggle: 40×40, Background=#333333, Checkmark=#FF9900 (24×24 inner, anchor 0.2-0.8)
+    component ConfigCheckBox: Item {
+        id: checkRoot
+        property bool checked: false
+        width: 40; height: 40
+
+        Rectangle {
+            anchors.fill: parent
+            color: "#333333"
+
+            Rectangle {
+                anchors.centerIn: parent
+                width: 24; height: 24
+                color: "#FF9900"
+                visible: checkRoot.checked
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: checkRoot.checked = !checkRoot.checked
+        }
+    }
+
+    // ── ConfigSliderRow ──
+    // Unity: Slider 300×20, Background=#333, Fill=#FF9900, Handle=#FFF 20×40
+    //        Value text: 80×40, 36px white, right-aligned
+    //        Row: HLG spacing=300, Label width=100, childControlWidth=false
+    //        Layout: Label(0-100) gap(300) Slider(400-700) gap(300) Value(1000-1080)
+    component ConfigSliderRow: RowLayout {
+        property string label: ""
+        property real sliderFrom: 0
+        property real sliderTo: 1
+        property real sliderStep: 0.05
+        property alias sliderValue: _slider.value
+        property bool showAsSeconds: false
+
+        Layout.preferredHeight: 100
+        Layout.fillWidth: true
+        spacing: 300
+
+        // Label (width=100, same as Unity RectTransform)
+        Text {
+            text: label
+            color: "#FFFFFF"
+            font { family: "MS Mincho"; pixelSize: 24 }
+            Layout.preferredWidth: 100
+            Layout.minimumWidth: 100
+            Layout.alignment: Qt.AlignVCenter
+        }
+
+        // Custom-rendered slider (300×20)
+        Item {
+            Layout.preferredWidth: 300
+            Layout.preferredHeight: 20
+            Layout.alignment: Qt.AlignVCenter
+
+            // Track background
+            Rectangle {
+                anchors.left: parent.left; anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                height: 10; color: "#333333"
+            }
+
+            // Fill bar
+            Rectangle {
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                width: parent.width * _slider.visualPosition
+                height: 10; color: "#FF9900"
+            }
+
+            // Handle visual
+            Rectangle {
+                width: 20; height: 40; color: "#FFFFFF"
+                x: Math.max(0, Math.min(parent.width - 20,
+                    parent.width * _slider.visualPosition - 10))
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            // Invisible slider for interaction
+            Slider {
+                id: _slider
+                anchors.fill: parent
+                from: sliderFrom; to: sliderTo; stepSize: sliderStep
+                background: Item {}
+                handle: Item {
+                    x: _slider.leftPadding + _slider.visualPosition * (_slider.availableWidth - width)
+                    y: _slider.topPadding + _slider.availableHeight / 2 - height / 2
+                    width: 20; height: 40
+                }
+            }
+        }
+
+        // Value display (80×40, 36px white)
+        Text {
+            Layout.preferredWidth: 80
+            Layout.preferredHeight: 40
+            Layout.alignment: Qt.AlignVCenter
+            text: showAsSeconds ? _slider.value.toFixed(1) + "s" : Math.round(_slider.value / _slider.to * 100) + "%"
+            color: "#FFFFFF"
+            font { family: "MS Mincho"; pixelSize: 36 }
+            horizontalAlignment: Text.AlignRight
+            verticalAlignment: Text.AlignVCenter
+        }
+    }
+
+    // ── ConfigComboBox ──
+    // Unity TMP_Dropdown: 400×50, Background=#1A1A1A (0.102,0.102,0.102)
+    component ConfigComboBox: ComboBox {
+        id: comboRoot
+        implicitWidth: 400; implicitHeight: 50
+
+        background: Rectangle {
+            color: "#1A1A1A"; border.color: "#333333"; border.width: 1
+        }
+
+        contentItem: Text {
+            leftPadding: 12
+            text: comboRoot.displayText
+            font { family: "MS Mincho"; pixelSize: 24 }
+            color: "#FFFFFF"
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+
+        indicator: Item {
+            x: comboRoot.width - 15 - (width/2)
+            anchors.verticalCenter: parent.verticalCenter
+            width: 20; height: 20
+            Image {
+                id: arrowImg
+                anchors.fill: parent
+                source: "qrc:/qt/qml/RealAmadeusPC/resources/images/DownAllow.png"
+                fillMode: Image.PreserveAspectFit
+                visible: false
+            }
+            MultiEffect {
+                anchors.fill: arrowImg
+                source: arrowImg
+                colorization: 1.0
+                colorizationColor: "#FF9900"
+            }
+        }
+
+        popup: Popup {
+            y: comboRoot.height; width: comboRoot.width
+            implicitHeight: contentItem.implicitHeight; padding: 1
+
+            background: Rectangle { color: "#1A1A1A"; border.color: "#333333"; border.width: 1 }
+
+            contentItem: ListView {
+                clip: true; implicitHeight: contentHeight
+                model: comboRoot.popup.visible ? comboRoot.delegateModel : null
+                ScrollIndicator.vertical: ScrollIndicator {}
+            }
+        }
+
+        delegate: ItemDelegate {
+            width: comboRoot.width; height: 50
+            background: Rectangle { color: highlighted ? "#111111" : "#1A1A1A" }
+            contentItem: Text {
+                text: modelData
+                color: "#FFFFFF"
+                font { family: "MS Mincho"; pixelSize: 24 }
+                verticalAlignment: Text.AlignVCenter; leftPadding: 12
+            }
+            highlighted: comboRoot.highlightedIndex === index
+        }
+    }
+
+    // ── ConfigTextField ──
+    // Unity InputField style: matching dropdown colors
+    component ConfigTextField: TextField {
+        id: fieldRoot
+        implicitWidth: 400; implicitHeight: 50
+        color: "#FFFFFF"
+        font { family: "MS Mincho"; pixelSize: 24 }
+        verticalAlignment: Text.AlignVCenter; leftPadding: 12
+
+        background: Rectangle {
+            color: "#1A1A1A"
+            border.color: fieldRoot.activeFocus ? "#FF9900" : "#333333"
+            border.width: 1
+        }
+
+        placeholderTextColor: "#666666"
+    }
+}
