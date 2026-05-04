@@ -12,8 +12,6 @@ Item {
     property string llmProvider: ""
     property string llmModel: ""
     property real   llmLatency: -1
-    property bool   isLoggedIn: false
-    property int    configLanguage: 0
 
     // Called by ChatPanel after each API response
     function updateLLMStats(provider, model, latencyMs) {
@@ -99,11 +97,11 @@ Item {
             spacing: 65
 
             // Row_SYSTEM_VERSION (HLG spacing=20, label minWidth=250, value flex=1)
-            StatusRow { label: "SYSTEM_VERSION"; value: "Real Amadeus v1.1Q(Build 20260327_005)" }
-            // Row_AVATAR_RENDERER
+            StatusRow { label: "SYSTEM_VERSION"; value: "Real Amadeus v1.1Q" }
+            // Row_LIVE2D_MODEL
             StatusRow { label: "LIVE2D_MODEL"; value: "Live2DKurisu v1.0" }
             // Row_OPERATOR
-            StatusRow { label: "OPERATOR"; value: (root.isLoggedIn && MemoryManager.userName.length > 0) ? MemoryManager.userName : "---" }
+            StatusRow { label: "OPERATOR"; value: MemoryManager.userName.length > 0 ? MemoryManager.userName : "---" }
             // Row_NETWORK
             StatusRow {
                 label: "NETWORK"
@@ -114,9 +112,9 @@ Item {
             // Row_LLMMODEL
             StatusRow {
                 label: "LLM_MODEL"
-                value: (root.llmProvider !== "" && root.llmModel !== "")
-                       ? (root.llmProvider + " / " + root.llmModel)
-                       : "---"
+                value: root.llmProvider.length > 0
+                       ? root.llmProvider + " / " + root.llmModel
+                       : AppSettings.getString("Config_ApiProvider", "0") + " / (未確認)"
             }
             // Row_AVERAGE_LATENCY
             StatusRow {
@@ -139,7 +137,7 @@ Item {
     Text {
         anchors { left: parent.left; leftMargin: 50; bottom: parent.bottom; bottomMargin: 10 }
         width: 1820
-        text: "Provided by ELVELT/Real Amadeus Project\nDeveloped by DSUV\nDesigned by DSUV/Amane\nThis project is a derivative work of Steins;Gate 0\nVersion 1.1Q(Build 20260327_005)"
+        text: "Provided by ELVELT/Real Amadeus Project\nDeveloped by DSUV\nDesigned by DSUV/Amane\nThis project is a derivative work of Steins;Gate 0\nVersion 1.1Q(Build 20260319_002)"
         color: "#808080"
         font { family: "MS Mincho"; pixelSize: 24 }
         horizontalAlignment: Text.AlignLeft
@@ -192,7 +190,7 @@ Item {
         anchors { right: parent.right; rightMargin: 100; bottom: parent.bottom; bottomMargin: 60 }
         Text {
             anchors.centerIn: parent
-            text: root.configLanguage === 1 ? "Close" : "閉じる"
+            text: "閉じる"
             color: "#FFFFFF"
             font { family: "MS Mincho"; pixelSize: 32 }
         }

@@ -11,100 +11,80 @@ Item {
     signal closed()
 
     property string dialogMessage: ""
-    property int    selectedIndex: 1 // 0: NO, 1: YES
-    property int    configLanguage: AppSettings.getInt("Config_Language", 0)
-
-    Connections {
-        target: AppSettings
-        function onSettingsChanged(key) {
-            if (key === "Config_Language") {
-                root.configLanguage = AppSettings.getInt("Config_Language", 0);
-            }
-        }
-    }
+    property int    selectedIndex: 0 // 0: YES, 1: NO
 
     anchors.fill: parent
 
     // Darken background
     Rectangle {
         anchors.fill: parent
-        color: "#1A1A1A"
+        color: "#000000"
         opacity: 0.7 * root.opacity
     }
 
     Rectangle {
         anchors.centerIn: parent
-        width: 800
-        height: 300
-        color: "#1A1A1A"
-        border.color: "#FFC900"
+        width: 500
+        height: 220
+        color: "#050d18"
+        border.color: "#FF9900"
         border.width: 1
+        radius: 2
 
         ColumnLayout {
-
-            width: parent.width
-            height: parent.height
+            anchors { fill: parent; margins: 30 }
+            spacing: 25
 
             Text {
-                height: 80
-                topPadding: -40
-                anchors.centerIn: parent
                 Layout.fillWidth: true
                 text: root.dialogMessage
                 color: "#FFFFFF"
-                font { family: "MS Mincho"; pixelSize: 36 }
-                verticalAlignment: Text.AlignTop
+                font { family: "MS Mincho"; pixelSize: 26 }
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
+                lineHeight: 1.2
             }
 
-            // NO button (Left)
-            Rectangle {
-                width: 200; height: 60
-                anchors.centerIn: parent
-                anchors.horizontalCenterOffset: -200
-                anchors.verticalCenterOffset: 100
-                color: root.selectedIndex === 0 ? "#FFC900" : "#404040"
-                radius: 2
+            RowLayout {
+                Layout.alignment: Qt.AlignHCenter
+                spacing: 40
 
-                Text {
-                    anchors.centerIn: parent
-                    text: root.configLanguage === 1 ? "No" : "いいえ"
-                    color: root.selectedIndex === 0 ? "#000000" : "#FFFFFF"
-                    font { family: "MS Mincho"; pixelSize: 30; bold: true }
-                    verticalAlignment: Text.AlignVCenter
-                    horizontalAlignment: Text.AlignHCenter
+                // YES button
+                Rectangle {
+                    width: 160; height: 50
+                    color: root.selectedIndex === 0 ? "#FF9900" : "#222222"
+                    border.color: "#FFFFFF"; border.width: root.selectedIndex === 0 ? 2 : 1
+                    Text {
+                        anchors.centerIn: parent
+                        text: "YES"
+                        color: "#FFFFFF"
+                        font { family: "MS Mincho"; pixelSize: 24; bold: true }
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onEntered: root.selectedIndex = 0
+                        onClicked: root.confirmed()
+                    }
                 }
-                MouseArea {
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    onEntered: root.selectedIndex = 0
-                    onClicked: root.cancelled()
-                }
-            }
 
-            // YES button (Right)
-            Rectangle {
-                width: 200; height: 60
-                anchors.centerIn: parent
-                anchors.horizontalCenterOffset: 200
-                anchors.verticalCenterOffset: 100
-                color: root.selectedIndex === 1 ? "#FFC900" : "#404040"
-                radius: 2
-
-                Text {
-                    anchors.centerIn: parent
-                    text: root.configLanguage === 1 ? "Yes" : "はい"
-                    color: root.selectedIndex === 1 ? "#000000" : "#FFFFFF"
-                    font { family: "MS Mincho"; pixelSize: 30; bold: true }
-                    verticalAlignment: Text.AlignVCenter
-                    horizontalAlignment: Text.AlignHCenter
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    onEntered: root.selectedIndex = 1
-                    onClicked: root.confirmed()
+                // NO button
+                Rectangle {
+                    width: 160; height: 50
+                    color: root.selectedIndex === 1 ? "#FF9900" : "#222222"
+                    border.color: "#FFFFFF"; border.width: root.selectedIndex === 1 ? 2 : 1
+                    Text {
+                        anchors.centerIn: parent
+                        text: "NO"
+                        color: "#FFFFFF"
+                        font { family: "MS Mincho"; pixelSize: 24; bold: true }
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onEntered: root.selectedIndex = 1
+                        onClicked: root.cancelled()
+                    }
                 }
             }
         }
@@ -114,7 +94,7 @@ Item {
         if (event.key === Qt.Key_Left || event.key === Qt.Key_A) { root.selectedIndex = 0; event.accepted = true; }
         else if (event.key === Qt.Key_Right || event.key === Qt.Key_D) { root.selectedIndex = 1; event.accepted = true; }
         else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            if (root.selectedIndex === 1) root.confirmed();
+            if (root.selectedIndex === 0) root.confirmed();
             else root.cancelled();
             event.accepted = true;
         }
@@ -127,7 +107,7 @@ Item {
     onVisibleChanged: {
         if (visible) {
             root.opacity = 0;
-            root.selectedIndex = 1; // Default to YES
+            root.selectedIndex = 1; // Default to NO for safety
             root.forceActiveFocus();
             Qt.callLater(() => root.opacity = 1);
         }

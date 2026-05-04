@@ -7,10 +7,8 @@ Item {
     property string appState: "login"
     property bool autoMode: false
     property real autoSpeed: 3.0
-    property int configLanguage: 0
     property bool isTabActive: false
     property real systemAnimProgress: 0.0
-    property var  backLog: null
 
     signal loginAccepted()
     signal bootFinished()
@@ -38,17 +36,9 @@ Item {
         tabAnimation.start();
     }
 
-    onAppStateChanged: {
-        if (appState === "login" && loginPanel) {
-            loginPanel.resetCredentials();
-        }
-    }
-
     Image {
         id: menuBackground
         source: "qrc:/qt/qml/RealAmadeusPC/resources/images/RealAmadeus_Menu_BG_v3.jpg"
-        sourceSize.width: 1920
-        sourceSize.height: 1080
         scale: 1.666667
         anchors.centerIn: parent
         anchors.horizontalCenterOffset: -250
@@ -123,8 +113,6 @@ Item {
     }
 
     // ─── Chat Screen ───
-    // Use Loader to defer model loading until appState changes to "chat"
-    // This keeps startup fast by deferring Live2D model loading until after login/boot UI
     Item {
         id: chatScreen
         anchors.top: titleBar.bottom
@@ -137,51 +125,35 @@ Item {
         Behavior on opacity { NumberAnimation { duration: 500 } }
 
         onVisibleChanged: {
-            if (visible) {
-                opacity = 1;
-                chatPanelLoader.active = true;  // Load ChatPanel with Live2D model on demand
-            } else {
-                chatPanelLoader.active = false; // Unload when not visible to save memory
-            }
+            if (visible) opacity = 1;
         }
 
-        Loader {
-            id: chatPanelLoader
+        ChatPanel {
+            id: chatPanel
             anchors.fill: parent
-            active: true  // Hold in memory for instant menu transitions
-            asynchronous: false  // Synchronous load to ensure consistent init
-            
-            sourceComponent: Component {
-                ChatPanel {
-                    id: chatPanel
-                    anchors.fill: parent
-                    autoMode: systemPanelRoot.autoMode
-                    autoSpeed: systemPanelRoot.autoSpeed
-                    configLanguage: systemPanelRoot.configLanguage
-                    backLog: systemPanelRoot.backLog
-                    menuPanelOpen: systemPanelRoot.isTabActive
-                    onOpenMenu: systemPanelRoot.openMenuRequested()
-                }
-            }
+            autoMode: systemPanelRoot.autoMode
+            autoSpeed: systemPanelRoot.autoSpeed
+            onOpenMenu: systemPanelRoot.openMenuRequested()
         }
 
-        // Unity System.unity AutoText parity
+        // Auto mode HUD indicator
         Text {
             visible: systemPanelRoot.autoMode
-            width: 200
-            height: 50
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.horizontalCenterOffset: 800
-            anchors.verticalCenterOffset: -427.5
-            text: "Auto"
-            color: "#ff9900"
-            font { family: "MS Mincho"; pixelSize: 70 }
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
+            anchors { right: parent.right; top: parent.top; margins: 16 }
+            text: "AUTO"
+            color: "#00d4ff"
+            font { family: monoFont ? monoFont.name : "Courier New"; pixelSize: 14; letterSpacing: 3 }
+            opacity: sequentialAnimation.running ? 1 : 0.4
+            SequentialAnimation on opacity {
+                id: sequentialAnimation
+                loops: Animation.Infinite
+                NumberAnimation { to: 1; duration: 600 }
+                NumberAnimation { to: 0.2; duration: 600 }
+            }
         }
     }
 
     // ─── Global fonts ───
+    FontLoader { id: monoFont; source: "qrc:/qt/qml/RealAmadeusPC/resources/fonts/Eurostile Condensed Bold.otf" }
     FontLoader { id: titleFont; source: "qrc:/qt/qml/RealAmadeusPC/resources/fonts/LiberationSans.ttf" }
 }
