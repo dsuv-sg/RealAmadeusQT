@@ -35,9 +35,8 @@ public:
     Q_INVOKABLE void addUserFact(const QString &fact);
     Q_INVOKABLE void addConversationSummary(const QString &summary);
 
-    /// Trims conversation history (mutates the list in-place via QML variant list).
-    /// Returns number of messages removed.
-    Q_INVOKABLE int trimConversationHistory(QVariantList &history, int maxTurns = 30);
+    /// Trims conversation history (pass-by-value, returns trimmed list).
+    Q_INVOKABLE QVariantList trimConversationHistory(QVariantList history, int maxTurns = 30);
 
     Q_INVOKABLE void clearAllMemory();
 

@@ -17,12 +17,224 @@ Item {
     property var apiKeyBuffer:   ({})
     property var modelNameBuffer: ({})
 
-    readonly property var categoryNames: ["基本設定", "テキスト設定", "サウンド設定", "グラフィック設定", "API設定"]
-    readonly property var providerNames: ["OpenAI", "Google Gemini", "Anthropic Claude", "Groq", "Vertex AI"]
+    // External language binding (from Main.qml / MenuPanel)
+    property int configLanguage: AppSettings.getInt("Config_Language", 0)
+    onConfigLanguageChanged: {
+        root.lang = configLanguage;
+    }
 
-    Component.onCompleted: loadSettings()
+    property int lang: AppSettings.getInt("Config_Language", 0)
+    property int originalLang: 0
+    property bool suppressLanguageCommit: true
+
+    readonly property string _fontFamily: {
+        if (lang === 3 && notoKR.status === FontLoader.Ready) return notoKR.name;
+        return "MS Mincho";
+    }
+
+    // Hybrid font rendering
+    // Korean: Hangul → Noto Serif, other → MS Mincho
+    // Russian: Cyrillic → MS Mincho + letter-spacing -8.4, other → MS Mincho
+    function styledText(text) {
+        if (!text) return "";
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;")
+                      .replace(/</g, "&lt;")
+                      .replace(/>/g, "&gt;");
+        }
+
+        function isHangul(c) {
+            var code = c.charCodeAt(0);
+            return (code >= 0xAC00 && code <= 0xD7AF) ||
+                   (code >= 0x1100 && code <= 0x11FF) ||
+                   (code >= 0x3130 && code <= 0x318F);
+        }
+
+        function isCyrillic(c) {
+            var code = c.charCodeAt(0);
+            return (code >= 0x0400 && code <= 0x04FF);
+        }
+
+        var result = "";
+        var hangulRun = "";
+        var cyrillicRun = "";
+        var otherRun = "";
+        var krFace = notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR";
+
+        function flushHangul() {
+            if (hangulRun.length === 0) return;
+            result += '<font face="' + krFace + '">' + escapeHtml(hangulRun) + '</font>';
+            hangulRun = "";
+        }
+        function flushCyrillic() {
+            if (cyrillicRun.length === 0) return;
+            result += '<span style="letter-spacing: -8.4px;">' + escapeHtml(cyrillicRun) + '</span>';
+            cyrillicRun = "";
+        }
+        function flushOther() {
+            if (otherRun.length === 0) return;
+            result += '<font face="MS Mincho">' + escapeHtml(otherRun) + '</font>';
+            otherRun = "";
+        }
+
+        for (var i = 0; i < text.length; i++) {
+            var c = text[i];
+            if (lang === 3 && isHangul(c)) {
+                flushCyrillic();
+                flushOther();
+                hangulRun += c;
+            } else if (lang === 7 && isCyrillic(c)) {
+                flushHangul();
+                flushOther();
+                cyrillicRun += c;
+            } else {
+                flushHangul();
+                flushCyrillic();
+                otherRun += c;
+            }
+        }
+        flushHangul();
+        flushCyrillic();
+        flushOther();
+
+        return result;
+    }
+
+    // Language-name styling: always render Hangul in Noto Serif regardless of current lang
+    function styledLanguageName(text) {
+        if (!text) return "";
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;")
+                      .replace(/</g, "&lt;")
+                      .replace(/>/g, "&gt;");
+        }
+        function isHangul(c) {
+            var code = c.charCodeAt(0);
+            return (code >= 0xAC00 && code <= 0xD7AF) ||
+                   (code >= 0x1100 && code <= 0x11FF) ||
+                   (code >= 0x3130 && code <= 0x318F);
+        }
+        var result = "";
+        var hangulRun = "";
+        var otherRun = "";
+        var krFace = notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR";
+        function flushHangul() {
+            if (hangulRun.length === 0) return;
+            result += '<font face="' + krFace + '">' + escapeHtml(hangulRun) + '</font>';
+            hangulRun = "";
+        }
+        function flushOther() {
+            if (otherRun.length === 0) return;
+            result += '<font face="MS Mincho">' + escapeHtml(otherRun) + '</font>';
+            otherRun = "";
+        }
+        for (var i = 0; i < text.length; i++) {
+            var c = text[i];
+            if (isHangul(c)) {
+                flushOther();
+                hangulRun += c;
+            } else {
+                flushHangul();
+                otherRun += c;
+            }
+        }
+        flushHangul();
+        flushOther();
+        return result;
+    }
+
+    // Mutable language-dependent arrays (rebuilt on lang change)
+    property var categoryNames: [
+        t("システム", "System", "系统", "시스템", "Sistema", "Système", "System", "Система"),
+        t("テキスト", "Text", "文本", "텍스트", "Texto", "Texte", "Text", "Текст"),
+        t("サウンド", "Sound", "音频", "사운드", "Sonido", "Son", "Sound", "Звук"),
+        t("グラフィック", "Graphics", "图像", "그래픽", "Gráficos", "Graphismes", "Grafik", "Графика"),
+        t("API", "API", "API", "API", "API", "API", "API", "API")
+    ]
+    property var screenModeModel: [
+        t("フルスクリーン", "Fullscreen", "全屏", "전체 화면", "Pantalla completa", "Plein écran", "Vollbild", "Полный экран"),
+        t("ウィンドウ", "Windowed", "窗口模式", "창 모드", "Modo ventana", "Mode fenêtré", "Fenstermodus", "Оконный режим")
+    ]
+
+    function rebuildLocalizedArrays() {
+        categoryNames = [
+            t("システム", "System", "系统", "시스템", "Sistema", "Système", "System", "Система"),
+            t("テキスト", "Text", "文本", "텍스트", "Texto", "Texte", "Text", "Текст"),
+            t("サウンド", "Sound", "音频", "사운드", "Sonido", "Son", "Sound", "Звук"),
+            t("グラフィック", "Graphics", "图像", "그래픽", "Gráficos", "Graphismes", "Grafik", "Графика"),
+            t("API", "API", "API", "API", "API", "API", "API", "API")
+        ];
+        screenModeModel = [
+            t("フルスクリーン", "Fullscreen", "全屏", "전체 화면", "Pantalla completa", "Plein écran", "Vollbild", "Полный экран"),
+            t("ウィンドウ", "Windowed", "窗口模式", "창 모드", "Modo ventana", "Mode fenêtré", "Fenstermodus", "Оконный режим")
+        ];
+    }
+
+    onLangChanged: {
+        rebuildLocalizedArrays();
+        if (visible) {
+            // Force Repeater delegate recreation by temporarily clearing model
+            sidebarRepeater.model = null;
+            sidebarRepeater.model = root.categoryNames;
+        }
+    }
+
+    FontLoader { id: notoKR; source: "qrc:/qt/qml/RealAmadeusPC/resources/fonts/NotoSerifCJKkr-Regular.otf" }
+
+    function t(ja, en, zh, ko, es, fr, de, ru) {
+        switch(lang) {
+            case 0: return ja;
+            case 1: return en;
+            case 2: return zh;
+            case 3: return ko;
+            case 4: return es;
+            case 5: return fr;
+            case 6: return de;
+            case 7: return ru;
+            default: return ja;
+        }
+    }
+
+    readonly property var providerNames: ["OpenAI", "Google Gemini", "Anthropic Claude", "Groq", "Vertex AI", "Ollama", "OpenRouter"]
+
+    readonly property var languageNames: [
+        "日本語",
+        "English",
+        "中文",
+        "한국어",
+        "Español",
+        "Français",
+        "Deutsch",
+        "Русский"
+    ]
+
+    Component.onCompleted: {
+        root.suppressLanguageCommit = true;
+        loadSettings();
+        root.suppressLanguageCommit = false;
+    }
+
+    Connections {
+        target: AppSettings
+        function onSettingsChanged(key) {
+            if (key === "Config_Language") {
+                var newLang = AppSettings.getInt("Config_Language", 0);
+                root.lang = newLang;
+                if (languageCombo.currentIndex !== newLang) {
+                    root.suppressLanguageCommit = true;
+                    languageCombo.currentIndex = newLang;
+                    root.suppressLanguageCommit = false;
+                }
+            }
+        }
+    }
 
     function loadSettings() {
+        root.suppressLanguageCommit = true;
+        root.lang = AppSettings.getInt("Config_Language", 0);
+        root.originalLang = root.lang;
+        rebuildLocalizedArrays();
         currentProviderIndex = AppSettings.getInt("Config_ApiProvider", 0);
 
         for (var i = 0; i < providerNames.length; i++) {
@@ -41,6 +253,10 @@ Item {
 
         skipLoadingToggle.checked  = AppSettings.getInt("Config_SkipLoading", 0) === 1;
         rightClickToggle.checked   = AppSettings.getInt("Config_RightClickMenu", 1) === 1;
+        eyeTrackingToggle.checked  = AppSettings.getInt("Config_EyeTracking", 0) === 1;
+        notificationsToggle.checked = AppSettings.getInt("Config_DesktopNotifications", 1) === 1;
+        lightweightToggle.checked  = AppSettings.getInt("Config_LightweightMode", 0) === 1;
+        languageCombo.currentIndex = Math.min(root.lang, languageNames.length - 1);
         textSpeedRow.sliderValue   = AppSettings.getFloat("Config_TextSpeed", 1.0);
         autoSpeedRow.sliderValue   = AppSettings.getFloat("Config_AutoSpeed", 3.0);
         autoModeToggle.checked     = AppSettings.getInt("Config_AutoMode", 0) === 1;
@@ -54,14 +270,23 @@ Item {
         providerCombo.currentIndex = currentProviderIndex;
         vertexProjectField.text    = AppSettings.getString("Config_VertexProject", "");
         vertexLocationField.text   = AppSettings.getString("Config_VertexLocation", "us-central1");
+        ollamaHostField.text       = AppSettings.getString("Config_OllamaHost", "http://localhost:11434");
+        root.suppressLanguageCommit = false;
     }
 
     function saveSettings() {
         apiKeyBuffer[currentProviderIndex]   = apiKeyField.text;
         modelNameBuffer[currentProviderIndex] = modelNameField.text;
 
+        var newLang = languageCombo.currentIndex;
+        AppSettings.setInt("Config_Language", newLang);
+        root.lang = newLang;
+
         AppSettings.setInt("Config_SkipLoading",       skipLoadingToggle.checked ? 1 : 0);
         AppSettings.setInt("Config_RightClickMenu",    rightClickToggle.checked  ? 1 : 0);
+        AppSettings.setInt("Config_EyeTracking",       eyeTrackingToggle.checked ? 1 : 0);
+        AppSettings.setInt("Config_DesktopNotifications", notificationsToggle.checked ? 1 : 0);
+        AppSettings.setInt("Config_LightweightMode",   lightweightToggle.checked ? 1 : 0);
         AppSettings.setFloat("Config_TextSpeed",       textSpeedRow.sliderValue);
         AppSettings.setFloat("Config_AutoSpeed",       autoSpeedRow.sliderValue);
         AppSettings.setInt("Config_AutoMode",          autoModeToggle.checked  ? 1 : 0);
@@ -75,6 +300,7 @@ Item {
         AppSettings.setInt("Config_WebSearch",         webSearchToggle.checked  ? 1 : 0);
         AppSettings.setString("Config_VertexProject",  vertexProjectField.text);
         AppSettings.setString("Config_VertexLocation", vertexLocationField.text);
+        AppSettings.setString("Config_OllamaHost",     ollamaHostField.text || "http://localhost:11434");
 
         for (var i = 0; i < providerNames.length; i++) {
             AppSettings.setString("Config_ApiKey_"   + i, apiKeyBuffer[i] || "");
@@ -124,15 +350,17 @@ Item {
             spacing: 15
 
             Repeater {
+                id: sidebarRepeater
                 model: root.categoryNames
                 delegate: Rectangle {
                     width: 400; height: 100
                     color: "#333333"
                     Text {
                         anchors.centerIn: parent
-                        text: modelData
+                        text: styledText(modelData)
+                        textFormat: Text.RichText
                         color: "#FF9900"
-                        font { family: "MS Mincho"; pixelSize: 36 }
+                        font { family: root._fontFamily; pixelSize: 36 }
                     }
                     MouseArea { anchors.fill: parent; onClicked: root.activeCategory = index }
                     border.color: index === root.activeCategory ? "#ffffff" : "transparent"
@@ -155,10 +383,12 @@ Item {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 80
                     Text {
+                        id: categoryHeaderText
                         anchors { left: parent.left; leftMargin: 40; verticalCenter: parent.verticalCenter }
-                        text: root.categoryNames[root.activeCategory]
+                        text: styledText(root.categoryNames[root.activeCategory])
+                        textFormat: Text.RichText
                         color: "#FF9900"
-                        font { family: "MS Mincho"; pixelSize: 48 }
+                        font { family: root._fontFamily; pixelSize: 48 }
                     }
                 }
 
@@ -181,8 +411,49 @@ Item {
                         visible: root.activeCategory === 0
                         anchors { fill: parent; leftMargin: 40; rightMargin: 40 }
                         spacing: 15
-                        ConfigRow { label: "起動画面スキップ"; ConfigCheckBox { id: skipLoadingToggle } }
-                        ConfigRow { label: "右クリックメニュー"; ConfigCheckBox { id: rightClickToggle } }
+                        ConfigRow { label: t("表示言語", "Display Language", "显示语言", "표시 언어", "Idioma", "Langue", "Sprache", "Язык"); ConfigComboBox {
+                            id: languageCombo; model: root.languageNames;
+                            contentItem: Text {
+                                id: langComboText
+                                leftPadding: 12
+                                text: styledLanguageName(root.languageNames[languageCombo.currentIndex] || "")
+                                textFormat: Text.RichText
+                                color: "#FFFFFF"
+                                font { family: root._fontFamily; pixelSize: 24 }
+                                verticalAlignment: Text.AlignVCenter
+                                elide: Text.ElideRight
+                                Connections {
+                                    target: languageCombo
+                                    function onCurrentIndexChanged() {
+                                        langComboText.text = styledLanguageName(root.languageNames[languageCombo.currentIndex] || "");
+                                    }
+                                }
+                            }
+                            delegate: ItemDelegate {
+                                width: languageCombo.width; height: 50
+                                background: Rectangle { color: highlighted ? "#111111" : "#1A1A1A" }
+                                contentItem: Text {
+                                    text: styledLanguageName(modelData)
+                                    textFormat: Text.RichText
+                                    color: "#FFFFFF"
+                                    font { family: root._fontFamily; pixelSize: 24 }
+                                    verticalAlignment: Text.AlignVCenter; leftPadding: 12
+                                }
+                                highlighted: languageCombo.highlightedIndex === index
+                            }
+                            onCurrentIndexChanged: {
+                                if (root.suppressLanguageCommit || !root.visible || currentIndex === -1) return;
+                                if (currentIndex !== AppSettings.getInt("Config_Language", 0)) {
+                                    AppSettings.setInt("Config_Language", currentIndex);
+                                    AppSettings.save();
+                                }
+                            }
+                        } }
+                        ConfigRow { label: t("起動画面スキップ", "Skip Loading Screen", "跳过启动画面", "로딩 화면 스킵", "Saltar pantalla de carga", "Passer l'écran de chargement", "Ladebildschirm überspringen", "Пропускать экран загрузки"); ConfigCheckBox { id: skipLoadingToggle } }
+                        ConfigRow { label: t("右クリックメニュー", "Right Click Menu", "右键菜单", "우클릭 메뉴", "Menú clic derecho", "Menu clic droit", "Rechtsklick-Menü", "Меню правой кнопки мыши"); ConfigCheckBox { id: rightClickToggle } }
+                        ConfigRow { label: t("視線トラッキング", "Eye Tracking", "视线追踪", "시선 추적", "Seguimiento de ojos", "Suivi oculaire", "Blick-Tracking", "Трекинг взгляда"); ConfigCheckBox { id: eyeTrackingToggle } }
+                        ConfigRow { label: t("通知を表示", "Show Notifications", "显示通知", "알림 표시", "Mostrar notificaciones", "Afficher les notifications", "Benachrichtigungen anzeigen", "Показывать уведомления"); ConfigCheckBox { id: notificationsToggle } }
+                        ConfigRow { label: t("軽量化モード", "Lightweight Mode", "轻量模式", "경량 모드", "Modo ligero", "Mode léger", "Leichtmodus", "Легкий режим"); ConfigCheckBox { id: lightweightToggle } }
                         Item { Layout.fillHeight: true }
                     }
 
@@ -191,9 +462,9 @@ Item {
                         visible: root.activeCategory === 1
                         anchors { fill: parent; leftMargin: 40; rightMargin: 40 }
                         spacing: 15
-                        ConfigSliderRow { id: textSpeedRow;  label: "文字表示速度"; sliderFrom: 0.1; sliderTo: 3.0; sliderStep: 0.1 }
-                        ConfigRow { label: "オート表示"; ConfigCheckBox { id: autoModeToggle } }
-                        ConfigSliderRow { id: autoSpeedRow;  label: "オート待機時間"; sliderFrom: 1.0; sliderTo: 10.0; sliderStep: 0.1; showAsSeconds: true }
+                        ConfigSliderRow { id: textSpeedRow;  label: t("文字表示速度", "Text Speed", "文字速度", "텍스트 속도", "Velocidad de texto", "Vitesse du texte", "Textgeschwindigkeit", "Скорость текста"); sliderFrom: 0.1; sliderTo: 3.0; sliderStep: 0.1 }
+                        ConfigRow { label: t("オート表示", "Auto Mode", "自动模式", "자동 모드", "Modo automático", "Mode automatique", "Auto-Modus", "Авторежим"); ConfigCheckBox { id: autoModeToggle } }
+                        ConfigSliderRow { id: autoSpeedRow;  label: t("オート待機時間", "Auto Wait Time", "自动等待时间", "자동 대기 시간", "Tiempo de espera", "Temps d'attente", "Wartezeit", "Время ожидания"); sliderFrom: 1.0; sliderTo: 10.0; sliderStep: 0.1; showAsSeconds: true }
                         Item { Layout.fillHeight: true }
                     }
 
@@ -202,10 +473,10 @@ Item {
                         visible: root.activeCategory === 2
                         anchors { fill: parent; leftMargin: 40; rightMargin: 40 }
                         spacing: 15
-                        ConfigSliderRow { id: masterVolRow; label: "マスター音量"; sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
-                        ConfigSliderRow { id: bgmVolRow;    label: "BGM音量";     sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
-                        ConfigSliderRow { id: seVolRow;     label: "SE音量";      sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
-                        ConfigSliderRow { id: voiceVolRow;  label: "ボイス音量";   sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
+                        ConfigSliderRow { id: masterVolRow; label: t("マスター音量", "Master Volume", "主音量", "마스터 볼륨", "Volumen maestro", "Volume principal", "Hauptlautstärke", "Громкость"); sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
+                        ConfigSliderRow { id: bgmVolRow;    label: t("BGM音量", "BGM Volume", "BGM音量", "BGM 볼륨", "Volumen BGM", "Volume BGM", "BGM-Lautstärke", "BGM");     sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
+                        ConfigSliderRow { id: seVolRow;     label: t("SE音量", "SE Volume", "音效音量", "SE 볼륨", "Volumen efectos", "Volume effets", "Effekte", "SE");      sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
+                        ConfigSliderRow { id: voiceVolRow;  label: t("ボイス音量", "Voice Volume", "语音音量", "음성 볼륨", "Volumen de voz", "Volume voix", "Stimme", "Голос");   sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
                         Item { Layout.fillHeight: true }
                     }
 
@@ -214,8 +485,8 @@ Item {
                         visible: root.activeCategory === 3
                         anchors { fill: parent; leftMargin: 40; rightMargin: 40 }
                         spacing: 15
-                        ConfigRow { label: "画面モード"; ConfigComboBox { id: screenModeCombo; model: ["フルスクリーン", "ウィンドウ"] } }
-                        ConfigRow { label: "解像度"; ConfigComboBox { id: resolutionCombo; model: ["1920x1080", "1600x900", "1280x720"] } }
+                        ConfigRow { label: t("画面モード", "Screen Mode", "屏幕模式", "화면 모드", "Modo de pantalla", "Mode d'écran", "Bildschirmmodus", "Экран"); ConfigComboBox { id: screenModeCombo; model: root.screenModeModel } }
+                        ConfigRow { label: t("解像度", "Resolution", "分辨率", "해상도", "Resolución", "Résolution", "Auflösung", "Разрешение"); ConfigComboBox { id: resolutionCombo; model: ["1920x1080", "1600x900", "1280x720"] } }
                         Item { Layout.fillHeight: true }
                     }
 
@@ -225,22 +496,33 @@ Item {
                         visible: root.activeCategory === 4
                         anchors { fill: parent; leftMargin: 40; rightMargin: 40 }
                         spacing: 0
-                        ConfigRow { label: "LLM APIプロバイダ"; ConfigComboBox { id: providerCombo; model: root.providerNames; onCurrentIndexChanged: root.onProviderChanged(currentIndex) } }
-                        ConfigRow { label: "APIキー"; visible: providerCombo.currentIndex !== 4; ConfigTextField { id: apiKeyField; echoMode: TextField.Password } }
-                        ConfigRow { label: "LLM モデル名"; ConfigTextField { id: modelNameField } }
-                        ConfigRow { label: "LLM Web検索"; ConfigCheckBox { id: webSearchToggle } }
-                        ConfigRow { label: "Vertex Project ID"; visible: providerCombo.currentIndex === 4; ConfigTextField { id: vertexProjectField } }
-                        ConfigRow { label: "VertexLocation"; visible: providerCombo.currentIndex === 4; ConfigTextField { id: vertexLocationField } }
+                        ConfigRow { label: t("LLM APIプロバイダ", "LLM API Provider", "LLM提供商", "LLM 제공자", "Proveedor LLM", "Fournisseur LLM", "LLM-Anbieter", "Провайдер"); ConfigComboBox { id: providerCombo; model: root.providerNames; popupMaxHeight: 500; onCurrentIndexChanged: root.onProviderChanged(currentIndex) } }
+                        ConfigRow { label: t("APIキー", "API Key", "API密钥", "API 키", "Clave API", "Clé API", "API-Schlüssel", "Ключ API"); visible: providerCombo.currentIndex !== 4; ConfigTextField { id: apiKeyField; echoMode: TextField.Password } }
+                        ConfigRow { label: t("LLM モデル名", "LLM Model Name", "模型名称", "모델명", "Nombre del modelo", "Nom du modèle", "Modellname", "Имя модели"); ConfigTextField { id: modelNameField } }
+                        ConfigRow { label: t("LLM Web検索", "LLM Web Search", "网络搜索", "웹 검색", "Búsqueda web", "Recherche web", "Websuche", "Веб-поиск"); ConfigCheckBox { id: webSearchToggle } }
+                        ConfigRow { label: t("Vertex Project ID", "Vertex Project ID", "Vertex 项目 ID", "Vertex 프로젝트 ID", "Vertex Project ID", "Vertex Project ID", "Vertex Projekt-ID", "Vertex ID проекта"); visible: providerCombo.currentIndex === 4; ConfigTextField { id: vertexProjectField } }
+                        ConfigRow { label: t("Vertex Location", "Vertex Location", "Vertex 位置", "Vertex 위치", "Vertex Ubicación", "Vertex Emplacement", "Vertex Standort", "Vertex Регион"); visible: providerCombo.currentIndex === 4; ConfigTextField { id: vertexLocationField } }
+                        ConfigRow { label: t("Ollama Host", "Ollama Host", "Ollama 主机", "Ollama 호스트", "Host Ollama", "Hôte Ollama", "Ollama-Host", "Хост Ollama"); visible: providerCombo.currentIndex === 5; ConfigTextField { id: ollamaHostField } }
                         // Unity: VertexInfoText row (info text, no control)
-                        Text {
-                            visible: providerCombo.currentIndex === 4
-                            Layout.preferredHeight: 100
-                            Layout.fillWidth: true
-                            text: "※ Vertexを使用するためには、gCloud CLIのインストールが必要です。"
-                            color: "#FFFFFF"
-                            font { family: "MS Mincho"; pixelSize: 24 }
-                            verticalAlignment: Text.AlignVCenter
-                        }
+                Text {
+                    visible: providerCombo.currentIndex === 4
+                    Layout.preferredHeight: 100
+                    Layout.fillWidth: true
+                    text: styledText(t(
+                        "※ Vertexを使用するためには、gCloud CLIのインストールが必要です。",
+                        "* gCloud CLI is required to use Vertex.",
+                        "* 使用Vertex需要安装gCloud CLI。",
+                        "* Vertex를 사용하려면 gCloud CLI가 필요합니다。",
+                        "* Se requiere gCloud CLI.",
+                        "* gCloud CLI est requis.",
+                        "* gCloud CLI wird benötigt.",
+                        "* Требуется gCloud CLI."
+                    ))
+                    textFormat: Text.StyledText
+                    color: "#FFFFFF"
+                    font { family: root._fontFamily; pixelSize: 24 }
+                    verticalAlignment: Text.AlignVCenter
+                }
                         Item { Layout.fillHeight: true }
                     }
                 }
@@ -258,13 +540,16 @@ Item {
             width: 210; height: 70
             color: "#4D4D4D"
             Text {
-                anchors.centerIn: parent; text: "キャンセル"
+                id: cancelBtnText
+                anchors.centerIn: parent
+                text: styledText(t("キャンセル", "Cancel", "取消", "취소", "Cancelar", "Annuler", "Abbrechen", "Отмена"))
+                textFormat: Text.RichText
                 color: "#FFFFFF"
-                font { family: "MS Mincho"; pixelSize: 32 }
+                font { family: root._fontFamily; pixelSize: 32 }
             }
             MouseArea {
                 anchors.fill: parent
-                onClicked: root.closed()
+                onClicked: { AppSettings.setInt("Config_Language", root.originalLang); AppSettings.save(); root.closed(); }
             }
         }
 
@@ -272,9 +557,12 @@ Item {
             width: 260; height: 70
             color: "#FF9900"
             Text {
-                anchors.centerIn: parent; text: "適用"
+                id: applyBtnText
+                anchors.centerIn: parent
+                text: styledText(t("適用", "Apply", "应用", "적용", "Aplicar", "Appliquer", "Anwenden", "Применить"))
+                textFormat: Text.RichText
                 color: "#FFFFFF"
-                font { family: "MS Mincho"; pixelSize: 32 }
+                font { family: root._fontFamily; pixelSize: 32 }
             }
             MouseArea {
                 anchors.fill: parent
@@ -315,13 +603,7 @@ Item {
         onTriggered: root.visible = false
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    //  Inline component definitions — match Unity exactly
-    // ═══════════════════════════════════════════════════════════════
-
     // ── ConfigRow ──
-    // Unity: HorizontalLayoutGroup spacing=300, 1200×100, childControlWidth=false
-    // Label RectTransform width=100, control starts at 100+300=400
     component ConfigRow: RowLayout {
         property string label: ""
         default property alias content: holder.data
@@ -329,12 +611,20 @@ Item {
         Layout.fillWidth: true
         spacing: 300
         Text {
-            text: label
+            id: rowLabelText
+            text: styledText(label)
+            textFormat: Text.RichText
             color: "#FFFFFF"
-            font { family: "MS Mincho"; pixelSize: 24 }
+            font { family: root._fontFamily; pixelSize: 24 }
             Layout.preferredWidth: 100
             Layout.minimumWidth: 100
             Layout.alignment: Qt.AlignVCenter
+            Connections {
+                target: root
+                function onLangChanged() {
+                    rowLabelText.text = styledText(label);
+                }
+            }
         }
         Item {
             id: holder
@@ -345,7 +635,6 @@ Item {
     }
 
     // ── ConfigCheckBox ──
-    // Unity Toggle: 40×40, Background=#333333, Checkmark=#FF9900 (24×24 inner, anchor 0.2-0.8)
     component ConfigCheckBox: Item {
         id: checkRoot
         property bool checked: false
@@ -388,12 +677,20 @@ Item {
 
         // Label (width=100, same as Unity RectTransform)
         Text {
-            text: label
+            id: sliderRowLabelText
+            text: styledText(label)
+            textFormat: Text.RichText
             color: "#FFFFFF"
-            font { family: "MS Mincho"; pixelSize: 24 }
+            font { family: root._fontFamily; pixelSize: 24 }
             Layout.preferredWidth: 100
             Layout.minimumWidth: 100
             Layout.alignment: Qt.AlignVCenter
+            Connections {
+                target: root
+                function onLangChanged() {
+                    sliderRowLabelText.text = styledText(label);
+                }
+            }
         }
 
         // Custom-rendered slider (300×20)
@@ -446,17 +743,30 @@ Item {
             Layout.alignment: Qt.AlignVCenter
             text: showAsSeconds ? _slider.value.toFixed(1) + "s" : Math.round(_slider.value / _slider.to * 100) + "%"
             color: "#FFFFFF"
-            font { family: "MS Mincho"; pixelSize: 36 }
+            font { family: root._fontFamily; pixelSize: 36 }
             horizontalAlignment: Text.AlignRight
             verticalAlignment: Text.AlignVCenter
         }
     }
 
     // ── ConfigComboBox ──
-    // Unity TMP_Dropdown: 400×50, Background=#1A1A1A (0.102,0.102,0.102)
     component ConfigComboBox: ComboBox {
         id: comboRoot
         implicitWidth: 400; implicitHeight: 50
+        property int popupMaxHeight: 400
+        focusPolicy: Qt.NoFocus
+        activeFocusOnTab: false
+
+        onActiveFocusChanged: {
+            if (activeFocus) root.forceActiveFocus()
+        }
+
+        Keys.onPressed: (event) => {
+            if (event.key === Qt.Key_Up || event.key === Qt.Key_Down ||
+                event.key === Qt.Key_Left || event.key === Qt.Key_Right) {
+                event.accepted = true
+            }
+        }
 
         background: Rectangle {
             color: "#1A1A1A"; border.color: "#333333"; border.width: 1
@@ -464,9 +774,10 @@ Item {
 
         contentItem: Text {
             leftPadding: 12
-            text: comboRoot.displayText
-            font { family: "MS Mincho"; pixelSize: 24 }
+            text: styledText(comboRoot.displayText)
+            textFormat: Text.StyledText
             color: "#FFFFFF"
+            font { family: root._fontFamily; pixelSize: 24 }
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
         }
@@ -492,14 +803,27 @@ Item {
 
         popup: Popup {
             y: comboRoot.height; width: comboRoot.width
-            implicitHeight: contentItem.implicitHeight; padding: 1
+            implicitHeight: Math.min(contentItem.implicitHeight, comboRoot.popupMaxHeight); padding: 1
+            focus: false
 
             background: Rectangle { color: "#1A1A1A"; border.color: "#333333"; border.width: 1 }
 
             contentItem: ListView {
+                focus: false
                 clip: true; implicitHeight: contentHeight
                 model: comboRoot.popup.visible ? comboRoot.delegateModel : null
                 ScrollIndicator.vertical: ScrollIndicator {}
+
+                Keys.onPressed: (event) => {
+                    if (event.key === Qt.Key_Up || event.key === Qt.Key_Down ||
+                        event.key === Qt.Key_Left || event.key === Qt.Key_Right) {
+                        event.accepted = true
+                    }
+                }
+            }
+
+            onClosed: {
+                root.forceActiveFocus()
             }
         }
 
@@ -507,9 +831,10 @@ Item {
             width: comboRoot.width; height: 50
             background: Rectangle { color: highlighted ? "#111111" : "#1A1A1A" }
             contentItem: Text {
-                text: modelData
+                text: styledText(modelData)
+                textFormat: Text.StyledText
                 color: "#FFFFFF"
-                font { family: "MS Mincho"; pixelSize: 24 }
+                font { family: root._fontFamily; pixelSize: 24 }
                 verticalAlignment: Text.AlignVCenter; leftPadding: 12
             }
             highlighted: comboRoot.highlightedIndex === index
@@ -522,7 +847,7 @@ Item {
         id: fieldRoot
         implicitWidth: 400; implicitHeight: 50
         color: "#FFFFFF"
-        font { family: "MS Mincho"; pixelSize: 24 }
+        font { family: root._fontFamily; pixelSize: 24 }
         verticalAlignment: Text.AlignVCenter; leftPadding: 12
 
         background: Rectangle {

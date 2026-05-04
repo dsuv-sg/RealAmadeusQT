@@ -32,6 +32,8 @@ qt_add_executable(appRealAmadeusPC
     src/live2ditem.h
     src/amadeuslive2dmodel.cpp
     src/amadeuslive2dmodel.h
+    src/notificationservice.cpp
+    src/notificationservice.h
     ${APP_ICON_RESOURCE}
 )
 
@@ -56,6 +58,7 @@ qt_add_qml_module(appRealAmadeusPC
         qml/HelpPanel.qml
         qml/ConfirmationDialog.qml
         qml/components/FadePanel.qml
+        qml/components/ScriptedText.qml
         qml/SystemPanel.qml
     RESOURCES
         resources/images/Amadeus_BG.png
@@ -78,6 +81,7 @@ qt_add_qml_module(appRealAmadeusPC
         resources/fonts/MateSC-Regular.ttf
         resources/fonts/DepartureMono-Regular.otf
         resources/fonts/LiberationSans.ttf
+        resources/fonts/NotoSerifCJKkr-Regular.otf
 )
 
 target_include_directories(appRealAmadeusPC PRIVATE src)

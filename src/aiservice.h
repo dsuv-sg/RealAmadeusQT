@@ -62,9 +62,11 @@ private:
     QDateTime m_vertexTokenExpiry;
     QSettings m_settings;
 
-    static constexpr int PROVIDER_OPENAI  = 0;
-    static constexpr int PROVIDER_GEMINI  = 1;
-    static constexpr int PROVIDER_CLAUDE  = 2;
-    static constexpr int PROVIDER_GROQ    = 3;
-    static constexpr int PROVIDER_VERTEX  = 4;
+    static constexpr int PROVIDER_OPENAI    = 0;
+    static constexpr int PROVIDER_GEMINI    = 1;
+    static constexpr int PROVIDER_CLAUDE    = 2;
+    static constexpr int PROVIDER_GROQ      = 3;
+    static constexpr int PROVIDER_VERTEX    = 4;
+    static constexpr int PROVIDER_OLLAMA    = 5;
+    static constexpr int PROVIDER_OPENROUTER = 6;
 };

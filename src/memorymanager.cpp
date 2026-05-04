@@ -119,8 +119,14 @@ bool MemoryManager::isEmotionRepeated() const
 
 void MemoryManager::setUserName(const QString &name)
 {
-    if (name.isEmpty()) return;
-    m_memory["userName"] = name;
+    const QString currentName = m_memory.value("userName").toString();
+    if (currentName == name) return;
+
+    if (name.isEmpty()) {
+        m_memory.remove("userName");
+    } else {
+        m_memory["userName"] = name;
+    }
     saveMemory();
     emit userNameChanged();
 }
@@ -147,7 +153,7 @@ void MemoryManager::addConversationSummary(const QString &summary)
     saveMemory();
 }
 
-int MemoryManager::trimConversationHistory(QVariantList &history, int maxTurns)
+QVariantList MemoryManager::trimConversationHistory(QVariantList history, int maxTurns)
 {
     // Count non-system messages
     int nonSystem = 0;
@@ -155,7 +161,7 @@ int MemoryManager::trimConversationHistory(QVariantList &history, int maxTurns)
         QVariantMap m = v.toMap();
         if (m.value("role").toString() != "system") nonSystem++;
     }
-    if (nonSystem <= maxTurns) return 0;
+    if (nonSystem <= maxTurns) return history;
 
     int toRemove = nonSystem - maxTurns + 4;
     QStringList toSummarize;
@@ -178,7 +184,7 @@ int MemoryManager::trimConversationHistory(QVariantList &history, int maxTurns)
         if (summary.length() > 300) summary = summary.left(300) + "...";
         addConversationSummary(summary);
     }
-    return removedCount;
+    return history;
 }
 
 void MemoryManager::clearAllMemory()

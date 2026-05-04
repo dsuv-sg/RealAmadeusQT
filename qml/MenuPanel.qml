@@ -2,24 +2,41 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Effects
 
-/// MenuPanel — exact mirror of Unity MenuPanelController.cs
-/// All positions are computed from Unity MCP data:
-///   MenuPanel: anchoredPos=(150,166), localScale=0.6
-///   Canvas: 1920×1080, center=(960,540)
-///   screen_x = 960 + (150 + child_x × 0.6)
-///   screen_y = 540 − (166 + child_y × 0.6)
-///   All x/y below are relative fractions of 1920/1080 so they scale.
 Item {
     id: root
     visible: false
 
     property int  selectedIndex: 0
     property bool menuOpen: false
+    property bool isLoggedIn: false
+    property var  backLog: null
+    property int  configLanguage: AppSettings.getInt("Config_Language", 0)
 
-    property bool isSubPanelOpen: (configPanel ? (configPanel.visible || backLogPanelMenu.visible || statusPanelMenu.visible || changeLogPanel.visible || helpPanel.visible || confirmDialog.visible) : false)
+    property bool isSubPanelOpen: (configPanel ? (configPanel.visible || (root.backLog && root.backLog.visible) || statusPanelMenu.visible || changeLogPanel.visible || helpPanel.visible || confirmDialog.visible) : false)
 
     signal closeMenuRequested()
     signal logoutRequested()
+
+    function t(ja, en, zh, ko, es, fr, de, ru) {
+        switch(configLanguage) {
+            case 0: return ja;
+            case 1: return en;
+            case 2: return zh;
+            case 3: return ko;
+            case 4: return es;
+            case 5: return fr;
+            case 6: return de;
+            case 7: return ru;
+            default: return ja;
+        }
+    }
+
+    Connections {
+        target: AppSettings
+        function onSettingsChanged(key) {
+            if (key === "Config_Language") { root.configLanguage = AppSettings.getInt("Config_Language", 0); }
+        }
+    }
 
     // Scale to actual window from Unity 1920×1080 reference
     readonly property real sx: width  / 1920.0
@@ -33,7 +50,6 @@ Item {
         root.menuOpen = true;
         bgImage.opacity     = 1;
         menuContent.opacity = 1;
-        selectedIndex = 0;
         menuFocus.forceActiveFocus();
     }
 
@@ -43,7 +59,6 @@ Item {
     }
 
     // ─── Menu background (Menu.png) ───
-    // Unity: center=(270,540), size=640×1080
     Image {
         id: bgImage
         source: imgBase + "Menu.png"
@@ -60,6 +75,7 @@ Item {
     Item {
         id: menuContent
         anchors.fill: parent
+        enabled: !confirmDialog.visible
         opacity: 0
         Behavior on opacity { NumberAnimation { duration: 300 } }
 
@@ -101,6 +117,7 @@ Item {
 
             MouseArea {
                 anchors.fill: parent
+                enabled: !root.isSubPanelOpen
                 onClicked: { root.selectedIndex = parent.itemIndex; root.executeSelection(); }
             }
         }
@@ -145,6 +162,7 @@ Item {
 
             MouseArea {
                 anchors.fill: parent
+                enabled: !root.isSubPanelOpen
                 onClicked: { root.selectedIndex = parent.itemIndex; root.executeSelection(); }
             }
         }
@@ -192,7 +210,7 @@ Item {
     // ─── Keyboard handler ───
     Item {
         id: menuFocus
-        focus: root.visible
+        focus: root.visible && !confirmDialog.visible
         Keys.onPressed: (event) => {
             if (!root.menuOpen) return;
             var up    = (event.key === Qt.Key_W || event.key === Qt.Key_Up);
@@ -237,7 +255,17 @@ Item {
         }
     }
 
-    function onBackLog()    { backLogPanelMenu.visible = true; backLogPanelMenu.forceActiveFocus(); }
+    function onBackLog() {
+        if (root.backLog) {
+            root.backLog.visible = true;
+            root.backLog.forceActiveFocus();
+            // Connect to restore focus when closed
+            var conn = root.backLog.closed.connect(function() {
+                menuFocus.forceActiveFocus();
+                root.backLog.closed.disconnect(conn);
+            });
+        }
+    }
     function onConfig()     { configPanel.visible = true; configPanel.forceActiveFocus(); }
     function onStatus()     { statusPanelMenu.visible = true; statusPanelMenu.forceActiveFocus(); }
     function onChangeLog()  { changeLogPanel.visible = true; changeLogPanel.forceActiveFocus(); }
@@ -252,7 +280,7 @@ Item {
         AppSettings.save();
     }
     function onLogout() {
-        confirmDialog.message = "ログアウトしますか？";
+        confirmDialog.message = t("ログアウトしますか？", "Do you want to log out?", "您确定要登出吗？", "로그아웃하시겠습니까?", "¿Quieres cerrar sesión?", "Voulez-vous vous déconnecter?", "Möchten Sie sich abmelden?", "Вы хотите выйти?");
         confirmDialog.onYes = function() {
             MemoryManager.setUserName("");
             root.logoutRequested();
@@ -261,40 +289,56 @@ Item {
         confirmDialog.visible = true;
     }
     function onShutdown() {
-        confirmDialog.message = "リアルアマデウスを終了しますか？";
+        confirmDialog.message = t("リアルアマデウスを終了しますか？", "Do you want to exit Real Amadeus?", "要退出Real Amadeus吗？", "Real Amadeus를 종료하시겠습니까?", "¿Quieres salir de Real Amadeus?", "Voulez-vous quitter Real Amadeus?", "Möchten Sie Real Amadeus beenden?", "Вы хотите выйти из Real Amadeus?");
         confirmDialog.onYes = function() { Qt.quit(); };
         confirmDialog.visible = true;
     }
 
     // ─── Sub-panels (restore focus on close) ───
+    // Block clicks from reaching menu icons/labels when a sub-panel is open
+    MouseArea {
+        anchors.fill: parent
+        visible: root.isSubPanelOpen && !confirmDialog.visible
+        z: -1
+        onPressed: (mouse) => { mouse.accepted = true; }
+        onClicked: (mouse) => { mouse.accepted = true; }
+        onReleased: (mouse) => { mouse.accepted = true; }
+    }
+
     ConfigPanel {
         id: configPanel
         anchors.fill: parent; visible: false
-        onClosed: { menuFocus.forceActiveFocus(); }
-    }
-    BackLogPanel {
-        id: backLogPanelMenu
-        anchors.fill: parent; visible: false
+        configLanguage: root.configLanguage
         onClosed: { menuFocus.forceActiveFocus(); }
     }
     StatusPanel {
         id: statusPanelMenu
         anchors.fill: parent; visible: false
+        llmProvider: mainWindow.llmProvider
+        llmModel: mainWindow.llmModel
+        llmLatency: mainWindow.llmLatency
+        isLoggedIn: root.isLoggedIn
+        configLanguage: root.configLanguage
         onClosed: { menuFocus.forceActiveFocus(); }
     }
     ChangeLogPanel {
         id: changeLogPanel
         anchors.fill: parent; visible: false
+        configLanguage: root.configLanguage
         onClosed: { menuFocus.forceActiveFocus(); }
     }
     HelpPanel {
         id: helpPanel
         anchors.fill: parent; visible: false
+        configLanguage: root.configLanguage
         onClosed: { menuFocus.forceActiveFocus(); }
     }
     ConfirmationDialog {
         id: confirmDialog
-        anchors.centerIn: parent; visible: false
+        anchors.fill: parent
+        z: 100
+        visible: false
+        configLanguage: root.configLanguage
         property string message: ""
         property var    onYes:   null
         dialogMessage: confirmDialog.message

@@ -458,9 +458,26 @@ public:
         _lipSyncValue = qBound(0.0f, value, 1.0f);
     }
 
+    void SetEyeTracking(float eyeX, float eyeY) {
+        _eyeTrackingX = eyeX;
+        _eyeTrackingY = eyeY;
+    }
+
+    void SetLightweightMode(bool enabled) {
+        _lightweightMode = enabled;
+    }
+
     void Update(float deltaSeconds) {
         if (!_initialized || _model == nullptr) {
             return;
+        }
+
+        // Lightweight mode: skip every other frame
+        if (_lightweightMode) {
+            _lightweightFrameSkip = (_lightweightFrameSkip + 1) % 2;
+            if (_lightweightFrameSkip != 0) {
+                return;
+            }
         }
 
         _userTimeSeconds += deltaSeconds;
@@ -555,11 +572,11 @@ public:
             SetParam(_idEyeROpen, eyeOpenValue);
         }
 
-        SetParam(_idBodyAngleX, _currentEmotion.bodyAngleX + _smoothedBodyX);
-        SetParam(_idBodyAngleY, _currentEmotion.bodyAngleY + _smoothedBodyY);
+        SetParam(_idBodyAngleX, _currentEmotion.bodyAngleX + _smoothedBodyX + (_smoothedGazeX * 5.0f));
+        SetParam(_idBodyAngleY, _currentEmotion.bodyAngleY + _smoothedBodyY + (_smoothedGazeY * 5.0f));
         SetParam(_idBodyAngleZ, _currentEmotion.bodyAngleZ + _smoothedBodyZ);
-        SetParam(_idAngleX, _currentEmotion.headAngleX + _smoothedHeadX);
-        SetParam(_idAngleY, _currentEmotion.headAngleY + _smoothedHeadY);
+        SetParam(_idAngleX, _currentEmotion.headAngleX + _smoothedHeadX + (_smoothedGazeX * 25.0f));
+        SetParam(_idAngleY, _currentEmotion.headAngleY + _smoothedHeadY + (_smoothedGazeY * 25.0f));
         SetParam(_idAngleZ, _currentEmotion.headAngleZ + _smoothedHeadZ);
 
         const bool isActivelyTyping = _lipSyncValue > 0.01f;
@@ -578,6 +595,14 @@ public:
 
         SetParam(_idBreath, (std::sinf(_userTimeSeconds * 1.2f) + 1.0f) * 0.5f);
 
+        // Eye tracking (Unity parity: smooth + body/head influence)
+        const float gazeSmoothT = qBound(0.0f, deltaSeconds * 5.0f, 1.0f);
+        _smoothedGazeX = Lerp(_smoothedGazeX, _eyeTrackingX, gazeSmoothT);
+        _smoothedGazeY = Lerp(_smoothedGazeY, _eyeTrackingY, gazeSmoothT);
+
+        if (_idEyeBallX) SetParam(_idEyeBallX, _smoothedGazeX);
+        if (_idEyeBallY) SetParam(_idEyeBallY, _smoothedGazeY);
+
         _model->SaveParameters();
         _model->Update();
     }
@@ -588,11 +613,20 @@ public:
         }
 
         CubismMatrix44 projection;
+        float baseScaleX, baseScaleY;
         if (_model->GetCanvasWidth() > 1.0f && width < height) {
-            projection.Scale(1.0f, static_cast<float>(width) / static_cast<float>(height));
+            baseScaleX = 1.0f;
+            baseScaleY = static_cast<float>(width) / static_cast<float>(height);
         } else {
-            projection.Scale(static_cast<float>(height) / static_cast<float>(width), 1.0f);
+            baseScaleX = static_cast<float>(height) / static_cast<float>(width);
+            baseScaleY = 1.0f;
         }
+
+        // Upper-body close-up: apply the same zoom to both axes so the
+        // aspect ratio is preserved.
+        const float zoom = 1.65f;
+        projection.Scale(baseScaleX * zoom, baseScaleY * zoom);
+        projection.Translate(0.0f, -1.13f);
 
         if (_modelMatrix != nullptr) {
             projection.MultiplyByMatrix(_modelMatrix);
@@ -662,6 +696,8 @@ private:
         _idAngleZ      = idm->GetId("ParamAngleZ");
         _idMouthOpenY  = idm->GetId("ParamMouthOpenY");
         _idBreath      = idm->GetId("ParamBreath");
+        _idEyeBallX    = idm->GetId("ParamEyeBallX");
+        _idEyeBallY    = idm->GetId("ParamEyeBallY");
     }
 
     EmotionTarget GetEmotionTarget(const QString& tag) const {
@@ -946,6 +982,12 @@ private:
     float _smoothedHeadX = 0.0f;
     float _smoothedHeadY = 0.0f;
     float _smoothedHeadZ = 0.0f;
+    float _smoothedGazeX = 0.0f;
+    float _smoothedGazeY = 0.0f;
+    float _eyeTrackingX = 0.0f;
+    float _eyeTrackingY = 0.0f;
+    bool _lightweightMode = false;
+    int _lightweightFrameSkip = 0;
     QString _modelDirectory;
     QString _emotionTag;
     CubismModelSettingJson* _setting;
@@ -974,6 +1016,8 @@ private:
     const CubismId* _idAngleZ = nullptr;
     const CubismId* _idMouthOpenY = nullptr;
     const CubismId* _idBreath = nullptr;
+    const CubismId* _idEyeBallX = nullptr;
+    const CubismId* _idEyeBallY = nullptr;
 };
 
 AmadeusLive2DModel::AmadeusLive2DModel()
@@ -1074,4 +1118,16 @@ bool AmadeusLive2DModel::TryInitializeWithBackend(const QString& modelDirectory,
     
     // Attempt load with current backend (OpenGL ES2 for all)
     return m_inner->EnsureLoaded(modelDirectory);
+}
+
+void AmadeusLive2DModel::SetEyeTracking(float eyeX, float eyeY) {
+    if (m_inner) {
+        m_inner->SetEyeTracking(qBound(-1.0f, eyeX, 1.0f), qBound(-1.0f, eyeY, 1.0f));
+    }
+}
+
+void AmadeusLive2DModel::SetLightweightMode(bool enabled) {
+    if (m_inner) {
+        m_inner->SetLightweightMode(enabled);
+    }
 }

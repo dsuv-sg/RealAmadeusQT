@@ -3,7 +3,6 @@ import QtQuick.Controls
 import QtQuick.Layouts
 
 /// StatusPanel - mirrors StatusPanelController.cs
-/// Unity: Header(SYSTEM STATUS 64px #FF9900), Clock(54px #FFF), InfoGrid(6 rows), Credits(24px #808080)
 Item {
     id: root
     signal closed()
@@ -12,6 +11,80 @@ Item {
     property string llmProvider: ""
     property string llmModel: ""
     property real   llmLatency: -1
+    property bool   isLoggedIn: false
+    property int    configLanguage: AppSettings.getInt("Config_Language", 0)
+    FontLoader { id: notoKR; source: "qrc:/qt/qml/RealAmadeusPC/resources/fonts/NotoSerifCJKkr-Regular.otf" }
+
+    function t(ja, en, zh, ko, es, fr, de, ru) {
+        switch(configLanguage) {
+            case 0: return ja;
+            case 1: return en;
+            case 2: return zh;
+            case 3: return ko;
+            case 4: return es;
+            case 5: return fr;
+            case 6: return de;
+            case 7: return ru;
+            default: return ja;
+        }
+    }
+
+    function mixedTextHtml(text, pixelSize) {
+        if (!text) return "";
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;")
+                      .replace(/</g, "&lt;")
+                      .replace(/>/g, "&gt;")
+                      .replace(/\n/g, "<br>");
+        }
+
+        function charType(c) {
+            var code = c.charCodeAt(0);
+            if (code >= 0xAC00 && code <= 0xD7AF) return "hangul";
+            if (code >= 0x1100 && code <= 0x11FF) return "hangul";
+            if (code >= 0x3130 && code <= 0x318F) return "hangul";
+            if (code >= 0x0400 && code <= 0x04FF) return "cyrillic";
+            return "other";
+        }
+
+        var html = "";
+        var currentType = "";
+        var currentText = "";
+
+        function flush() {
+            if (currentText.length === 0) return;
+            if (currentType === "hangul") {
+                var family = notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR";
+                html += '<span style="font-family: \'' + family + '\';">' + escapeHtml(currentText) + '</span>';
+            } else if (currentType === "cyrillic") {
+                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: -8.4px;">' + escapeHtml(currentText) + '</span>';
+            } else {
+                html += '<span style="font-family: \'MS Mincho\';">' + escapeHtml(currentText) + '</span>';
+            }
+            currentText = "";
+        }
+
+        for (var i = 0; i < text.length; i++) {
+            var c = text[i];
+            var type = charType(c);
+            if (type !== currentType && currentText.length > 0) {
+                flush();
+            }
+            if (currentText.length === 0) currentType = type;
+            currentText += c;
+        }
+        flush();
+
+        return '<span style="font-size: ' + pixelSize + 'px;">' + html + '</span>';
+    }
+
+    Connections {
+        target: AppSettings
+        function onSettingsChanged(key) {
+            if (key === "Config_Language") configLanguage = AppSettings.getInt("Config_Language", 0);
+        }
+    }
 
     // Called by ChatPanel after each API response
     function updateLLMStats(provider, model, latencyMs) {
@@ -21,7 +94,6 @@ Item {
     }
 
     // ─── Background ───
-    // Unity: Image component, sprite=Amadeus_BG.png, type=Simple, color=(1,1,1,1)
     Image {
         anchors.fill: parent
         source: "qrc:/qt/qml/RealAmadeusPC/resources/images/Amadeus_BG.png"
@@ -29,11 +101,8 @@ Item {
     }
 
     // ─── Header ───
-    // Unity: anchoredPos=(960,-70) from top-left, size=1820×80, text="SYSTEM STATUS"
-    // Font: MSMINCHO 64px, color=#FF9900 (r:1.0 g:0.6 b:0.0), hAlign=Left, vAlign=Middle
     Item {
         id: headerItem
-        // Unity offsetMin.x=50, offsetMax.x=1870, so left=50, right=1920-1870=50
         anchors { top: parent.top; left: parent.left; right: parent.right }
         anchors.topMargin: 30
         anchors.leftMargin: 50
@@ -56,9 +125,6 @@ Item {
     }
 
     // ─── Clock ───
-    // Unity: anchoredPos=(600,-60) from center-top, size=1820×80
-    // Font: MSMINCHO 54px, color=#FFFFFF, hAlign=Center, vAlign=Middle
-    // In 1920-based coords: top = 60 - 40 = 20, left = 960 + 600 - 910 = 650
     Text {
         id: clockText
         anchors { top: parent.top; topMargin: 20 }
@@ -74,9 +140,6 @@ Item {
     }
 
     // ─── InfoGrid ───
-    // Unity: anchoredPos=(960,-325) from top-left, size=1820×330
-    // offsetMin.x=50 → left=50, offsetMax.x=1870 → right=1920-1870=50
-    // top = 325 - 165 = 160, bottom = top + 330 = 490
     Item {
         id: infoGrid
         anchors { top: parent.top; left: parent.left; right: parent.right }
@@ -86,10 +149,6 @@ Item {
         height: 330
 
         // ─── LeftCol ───
-        // Unity: localPos=(-490,0) relative to InfoGrid center, size=837×330
-        // InfoGrid center.x = 910, so LeftCol center.x = 910 - 490 = 420
-        // LeftCol left = 420 - 418.5 = 1.5 ≈ 2
-        // VLG spacing=15, 6 rows × 100h = 600 + 5×15 = 675
         Column {
             id: leftCol
             anchors { left: parent.left; leftMargin: 2; top: parent.top }
@@ -97,11 +156,11 @@ Item {
             spacing: 65
 
             // Row_SYSTEM_VERSION (HLG spacing=20, label minWidth=250, value flex=1)
-            StatusRow { label: "SYSTEM_VERSION"; value: "Real Amadeus v1.1Q" }
+            StatusRow { label: "SYSTEM_VERSION"; value: "Real Amadeus v1.2Q(Build 20260504_001)" }
             // Row_LIVE2D_MODEL
             StatusRow { label: "LIVE2D_MODEL"; value: "Live2DKurisu v1.0" }
             // Row_OPERATOR
-            StatusRow { label: "OPERATOR"; value: MemoryManager.userName.length > 0 ? MemoryManager.userName : "---" }
+            StatusRow { label: "OPERATOR"; value: root.isLoggedIn ? (MemoryManager.userName.length > 0 ? MemoryManager.userName : "Salieri") : "---" }
             // Row_NETWORK
             StatusRow {
                 label: "NETWORK"
@@ -112,9 +171,11 @@ Item {
             // Row_LLMMODEL
             StatusRow {
                 label: "LLM_MODEL"
-                value: root.llmProvider.length > 0
-                       ? root.llmProvider + " / " + root.llmModel
-                       : AppSettings.getString("Config_ApiProvider", "0") + " / (未確認)"
+                value: {
+                    // Unity parity: keep initial placeholder until first LLM stats update.
+                    if (root.llmProvider.length === 0 || root.llmModel.length === 0) return "---";
+                    return root.llmProvider + " / " + root.llmModel;
+                }
             }
             // Row_AVERAGE_LATENCY
             StatusRow {
@@ -131,13 +192,11 @@ Item {
     }
 
     // ─── Credits ───
-    // Unity: localPos=(0,-510) from StatusPanel center, size=1820×40
-    // Font: MSMINCHO 24px, color=#808080. Alignment: Left, Bottom (Horizontal: 1, Vertical: 1024)
-    // 5-line text. Container bottom is 10px from screen bottom.
+
     Text {
         anchors { left: parent.left; leftMargin: 50; bottom: parent.bottom; bottomMargin: 10 }
         width: 1820
-        text: "Provided by ELVELT/Real Amadeus Project\nDeveloped by DSUV\nDesigned by DSUV/Amane\nThis project is a derivative work of Steins;Gate 0\nVersion 1.1Q(Build 20260319_002)"
+        text: "Provided by ELVELT/Real Amadeus Project\nDeveloped by DSUV\nDesigned by DSUV/Amane\nThis project is a derivative work of Steins;Gate 0\nVersion 1.2Q(Build 20260504_001)"
         color: "#808080"
         font { family: "MS Mincho"; pixelSize: 24 }
         horizontalAlignment: Text.AlignLeft
@@ -190,9 +249,10 @@ Item {
         anchors { right: parent.right; rightMargin: 100; bottom: parent.bottom; bottomMargin: 60 }
         Text {
             anchors.centerIn: parent
-            text: "閉じる"
+            text: mixedTextHtml(t("閉じる", "Close", "关闭", "닫기", "Cerrar", "Fermer", "Schließen", "Закрыть"), font.pixelSize)
             color: "#FFFFFF"
-            font { family: "MS Mincho"; pixelSize: 32 }
+            textFormat: Text.RichText
+            font.pixelSize: 32
         }
         MouseArea {
             anchors.fill: parent
@@ -220,9 +280,6 @@ Item {
     }
 
     // ─── StatusRow component ───
-    // Unity: HorizontalLayoutGroup spacing=20, row height=100
-    // Child 1 (Label): LayoutElement minWidth=250, preferredWidth=250, fontSize=32, color=#FF9900
-    // Child 2 (Value): LayoutElement flexibleWidth=1, fontSize=32 (autoSize), color=#FFFFFF
     component StatusRow: Item {
         property string label: ""
         property string value: ""
@@ -250,10 +307,11 @@ Item {
                 width: parent.width - 250 - 20
                 height: parent.height
                 verticalAlignment: Text.AlignVCenter
-                fontSizeMode: Text.HorizontalFit
+                //fontSizeMode: Text.HorizontalFit
                 minimumPixelSize: 18
-                clip: true
+                //clip: true
             }
         }
     }
+
 }

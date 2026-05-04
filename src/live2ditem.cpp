@@ -41,7 +41,7 @@ class Live2DRenderer final : public QQuickFramebufferObject::Renderer, protected
 public:
     Live2DRenderer()
         : m_model(new AmadeusLive2DModel()),
-                    m_glReady(false),
+          m_glReady(false),
           m_lipSyncValue(0.0f) {
         m_timer.start();
     }
@@ -54,7 +54,8 @@ public:
         QOpenGLFramebufferObjectFormat format;
         format.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
         format.setSamples(0);
-        return new QOpenGLFramebufferObject(size, format);
+        m_renderSize = size;
+        return new QOpenGLFramebufferObject(m_renderSize, format);
     }
 
     void synchronize(QQuickFramebufferObject* item) override {
@@ -62,6 +63,8 @@ public:
         m_modelDir = ResolveModelDirectory(live2dItem->modelPath());
         m_emotion = live2dItem->emotion();
         m_lipSyncValue = live2dItem->lipSyncValue();
+        m_model->SetEyeTracking(live2dItem->eyeX(), live2dItem->eyeY());
+        m_model->SetLightweightMode(live2dItem->lightweightMode());
     }
 
     void render() override {
@@ -78,7 +81,7 @@ public:
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
         if (!m_model->EnsureLoaded(m_modelDir)) {
-            glViewport(0, 0, framebufferObject()->width(), framebufferObject()->height());
+            glViewport(0, 0, m_renderSize.width(), m_renderSize.height());
             glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
             update();
@@ -88,14 +91,14 @@ public:
         const qint64 elapsedMs = m_timer.restart();
         const float deltaSeconds = qBound(0.001f, elapsedMs / 1000.0f, 0.1f);
 
-        glViewport(0, 0, framebufferObject()->width(), framebufferObject()->height());
+        glViewport(0, 0, m_renderSize.width(), m_renderSize.height());
         glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
         m_model->SetEmotionTag(m_emotion);
         m_model->SetLipSyncValue(m_lipSyncValue);
         m_model->Update(deltaSeconds);
-        m_model->Draw(framebufferObject()->width(), framebufferObject()->height());
+        m_model->Draw(m_renderSize.width(), m_renderSize.height());
 
         update();
     }
@@ -107,6 +110,7 @@ private:
     QString m_emotion;
     float m_lipSyncValue;
     QElapsedTimer m_timer;
+    QSize m_renderSize{3840, 2160};
 };
 
 } // namespace
@@ -158,6 +162,45 @@ void Live2DItem::setLipSyncValue(float value) {
     }
     m_lipSyncValue = value;
     emit lipSyncValueChanged();
+    update();
+}
+
+float Live2DItem::eyeX() const {
+    return m_eyeX;
+}
+
+void Live2DItem::setEyeX(float value) {
+    if (qFuzzyCompare(m_eyeX, value)) {
+        return;
+    }
+    m_eyeX = value;
+    emit eyeXChanged();
+    update();
+}
+
+float Live2DItem::eyeY() const {
+    return m_eyeY;
+}
+
+void Live2DItem::setEyeY(float value) {
+    if (qFuzzyCompare(m_eyeY, value)) {
+        return;
+    }
+    m_eyeY = value;
+    emit eyeYChanged();
+    update();
+}
+
+bool Live2DItem::lightweightMode() const {
+    return m_lightweightMode;
+}
+
+void Live2DItem::setLightweightMode(bool value) {
+    if (m_lightweightMode == value) {
+        return;
+    }
+    m_lightweightMode = value;
+    emit lightweightModeChanged();
     update();
 }
 

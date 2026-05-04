@@ -8,11 +8,37 @@ Item {
     property bool autoMode: false
     property real autoSpeed: 3.0
     property bool isTabActive: false
+    property bool menuPanelOpen: false
     property real systemAnimProgress: 0.0
+    property var  backLog: null
 
     signal loginAccepted()
     signal bootFinished()
     signal openMenuRequested()
+    property alias chatPanel: chatPanel
+
+    property int configLanguage: AppSettings.getInt("Config_Language", 0)
+
+    function t(ja, en, zh, ko, es, fr, de, ru) {
+        switch(configLanguage) {
+            case 0: return ja;
+            case 1: return en;
+            case 2: return zh;
+            case 3: return ko;
+            case 4: return es;
+            case 5: return fr;
+            case 6: return de;
+            case 7: return ru;
+            default: return ja;
+        }
+    }
+
+    Connections {
+        target: AppSettings
+        function onSettingsChanged(key) {
+            if (key === "Config_Language") { configLanguage = AppSettings.getInt("Config_Language", 0); }
+        }
+    }
 
     // Bind transforms to progress
     scale: 1.0 + (0.6 - 1.0) * systemAnimProgress
@@ -133,23 +159,24 @@ Item {
             anchors.fill: parent
             autoMode: systemPanelRoot.autoMode
             autoSpeed: systemPanelRoot.autoSpeed
+            backLog: systemPanelRoot.backLog
+            configLanguage: systemPanelRoot.configLanguage
+            menuPanelOpen: systemPanelRoot.menuPanelOpen
             onOpenMenu: systemPanelRoot.openMenuRequested()
         }
-
-        // Auto mode HUD indicator
         Text {
             visible: systemPanelRoot.autoMode
-            anchors { right: parent.right; top: parent.top; margins: 16 }
-            text: "AUTO"
-            color: "#00d4ff"
-            font { family: monoFont ? monoFont.name : "Courier New"; pixelSize: 14; letterSpacing: 3 }
-            opacity: sequentialAnimation.running ? 1 : 0.4
-            SequentialAnimation on opacity {
-                id: sequentialAnimation
-                loops: Animation.Infinite
-                NumberAnimation { to: 1; duration: 600 }
-                NumberAnimation { to: 0.2; duration: 600 }
-            }
+            width: 200
+            height: 50
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.horizontalCenterOffset: 800
+            anchors.verticalCenterOffset: -427.5
+            text: "Auto"
+            color: "#ff9900"
+            font { family: "MS Mincho"; pixelSize: 70 }
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
         }
     }
 

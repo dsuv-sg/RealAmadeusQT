@@ -4,15 +4,71 @@ import QtQuick.Layouts
 import QtQuick.Window
 
 Window {
-    id: root
+    id: mainWindow
     width:  1920
     height: 1080
     minimumWidth:  800
     minimumHeight: 450
     visible: true
-    visibility: Window.FullScreen
     title: "Amadeus System"
     color: "#000000"
+
+    // Apply saved screen mode on startup
+    visibility: AppSettings.getInt("Config_ScreenMode", 0) === 0 ? Window.FullScreen : Window.Windowed
+
+    function centerWindow() {
+        if (mainWindow.visibility !== Window.Windowed) return;
+
+        var s = mainWindow.screen;
+        if (!s) return;
+
+        var gx = 0;
+        var gy = 0;
+        var gw = s.width;
+        var gh = s.height;
+
+        if (s.availableGeometry) {
+            gx = s.availableGeometry.x;
+            gy = s.availableGeometry.y;
+            gw = s.availableGeometry.width;
+            gh = s.availableGeometry.height;
+        } else if (s.virtualGeometry) {
+            gx = s.virtualGeometry.x;
+            gy = s.virtualGeometry.y;
+            gw = s.virtualGeometry.width;
+            gh = s.virtualGeometry.height;
+        }
+
+        mainWindow.x = Math.round(gx + (gw - mainWindow.width) / 2);
+        mainWindow.y = Math.round(gy + (gh - mainWindow.height) / 2);
+    }
+
+    function applyScreenSettings() {
+        var screenMode = AppSettings.getInt("Config_ScreenMode", 0);
+        // 0 = Fullscreen, 1 = Windowed
+        if (screenMode === 0) {
+            mainWindow.visibility = Window.FullScreen;
+        } else {
+            mainWindow.visibility = Window.Windowed;
+        }
+
+        // Apply resolution (only when not fullscreen)
+        var resIdx = AppSettings.getInt("Config_Resolution", 0);
+        var w = 1920, h = 1080;
+        if (resIdx === 1) { w = 1600; h = 900; }
+        else if (resIdx === 2) { w = 1280; h = 720; }
+        if (screenMode !== 0) {
+            mainWindow.width = w;
+            mainWindow.height = h;
+            Qt.callLater(mainWindow.centerWindow);
+        }
+    }
+
+    onVisibilityChanged: {
+        if (mainWindow.visibility === Window.Windowed) {
+            Qt.callLater(mainWindow.centerWindow);
+        }
+    }
 
     // ─── State machine ───
     // "login" → "boot" → "chat"
@@ -25,41 +81,13 @@ Window {
     // Tab Window Toggle State
     property bool isTabActive: false
 
-    function applyScreenSettings() {
-        var screenMode = AppSettings.getInt("Config_ScreenMode", 0);
-        var resIdx = AppSettings.getInt("Config_Resolution", 0);
-        
-        var w = 1920, h = 1080;
-        if (resIdx === 0) { w = 1920; h = 1080; }
-        else if (resIdx === 1) { w = 1600; h = 900; }
-        else if (resIdx === 2) { w = 1280; h = 720; }
+    // Global Language (single source of truth)
+    property int configLanguage: AppSettings.getInt("Config_Language", 0)
 
-        if (screenMode === 0) {
-            // FullScreen — use plain Qt.Window flag for true fullscreen
-            root.flags = Qt.Window;
-            root.minimumWidth = 0;
-            root.maximumWidth = 16384;
-            root.minimumHeight = 0;
-            root.maximumHeight = 16384;
-            root.visibility = Window.FullScreen;
-        } else {
-            // Windowed — disable resize/maximize via custom flags
-            root.flags = Qt.Window | Qt.CustomizeWindowHint | Qt.WindowTitleHint
-                       | Qt.WindowSystemMenuHint | Qt.WindowMinimizeButtonHint
-                       | Qt.WindowCloseButtonHint;
-            root.visibility = Window.Windowed;
-            root.width = w;
-            root.height = h;
-            root.minimumWidth = w;
-            root.maximumWidth = w;
-            root.minimumHeight = h;
-            root.maximumHeight = h;
-
-            // Center on resolution change
-            root.x = (Screen.width - w) / 2;
-            root.y = (Screen.height - h) / 2;
-        }
-    }
+    // LLM Stats (mirrors Unity StatusPanelController)
+    property string llmProvider: ""
+    property string llmModel: ""
+    property real   llmLatency: -1
 
     Connections {
         target: AppSettings
@@ -67,24 +95,23 @@ Window {
             if (key === "Config_ScreenMode" || key === "Config_Resolution") {
                 applyScreenSettings();
             }
+            if (key === "Config_Language") {
+                mainWindow.configLanguage = AppSettings.getInt("Config_Language", 0);
+            }
         }
     }
 
     // ─── Global UI scaling ───
-    // All UI is designed for 1920×1080. When the window is smaller,
-    // we scale the contentItem so proportions are preserved.
-    readonly property real uiScale: root.width / 1920.0
+    readonly property real uiScale: mainWindow.width / 1920.0
 
-    // Apply scale to the Window's implicit content container.
-    // This does NOT conflict with child-level scale/x/y (e.g. SystemPanel Tab anim).
     Component.onCompleted: {
         contentItem.transform = [scaleXform];
         applyScreenSettings();
     }
     Scale {
         id: scaleXform
-        xScale: root.uiScale
-        yScale: root.uiScale
+        xScale: mainWindow.uiScale
+        yScale: mainWindow.uiScale
         origin.x: 0
         origin.y: 0
     }
@@ -99,10 +126,18 @@ Window {
         }
     }
     Shortcut {
+        sequence: "Alt+Return"
+        onActivated: {
+            var current = AppSettings.getInt("Config_ScreenMode", 0);
+            AppSettings.setInt("Config_ScreenMode", current === 0 ? 1 : 0);
+            AppSettings.save();
+        }
+    }
+    Shortcut {
         sequence: "F3"
         onActivated: {
-            root.autoMode = !root.autoMode;
-            AppSettings.setInt("Config_AutoMode", root.autoMode ? 1 : 0);
+            mainWindow.autoMode = !mainWindow.autoMode;
+            AppSettings.setInt("Config_AutoMode", mainWindow.autoMode ? 1 : 0);
             AppSettings.save();
         }
     }
@@ -111,8 +146,30 @@ Window {
         sequence: "Tab"
         onActivated: {
             if (menuPanel.isSubPanelOpen) return;
-            root.isTabActive = !root.isTabActive
+            mainWindow.isTabActive = !mainWindow.isTabActive
         }
+    }
+
+    TapHandler {
+        id: rightClickMenuToggle
+        target: null
+        acceptedDevices: PointerDevice.Mouse
+        acceptedButtons: Qt.RightButton
+        onTapped: {
+            if (AppSettings.getInt("Config_RightClickMenu", 1) !== 1) return;
+            if (menuPanel.isSubPanelOpen) return;
+            mainWindow.isTabActive = !mainWindow.isTabActive;
+        }
+    }
+
+    // ─── BackLog Panel (Shared) ───
+    BackLogPanel {
+        id: mainBackLog
+        z: 100
+        visible: false
+        width: 1920
+        height: 1080
+        configLanguage: mainWindow.configLanguage
     }
 
     // ─── System Panel ───
@@ -120,21 +177,24 @@ Window {
         id: systemPanel
         width: 1920
         height: 1080
-        enabled: !root.isTabActive
+        enabled: !mainWindow.isTabActive
 
-        appState: root.appState
-        autoMode: root.autoMode
-        autoSpeed: root.autoSpeed
-        isTabActive: root.isTabActive
+        appState: mainWindow.appState
+        autoMode: mainWindow.autoMode
+        autoSpeed: mainWindow.autoSpeed
+        isTabActive: mainWindow.isTabActive
+        menuPanelOpen: menuPanel.menuOpen
+        backLog: mainBackLog
+        configLanguage: mainWindow.configLanguage
 
-        onLoginAccepted: root.appState = "boot"
-        onBootFinished: root.appState = "chat"
+        onLoginAccepted: mainWindow.appState = "boot"
+        onBootFinished: mainWindow.appState = "chat"
         onOpenMenuRequested: menuPanel.show()
         
         onSystemAnimProgressChanged: {
-            if (root.isTabActive && systemAnimProgress >= 0.95 && !menuPanel.menuOpen) {
+            if (mainWindow.isTabActive && systemAnimProgress >= 0.95 && !menuPanel.menuOpen) {
                 menuPanel.show();
-            } else if (!root.isTabActive && menuPanel.menuOpen) {
+            } else if (!mainWindow.isTabActive && menuPanel.menuOpen) {
                 menuPanel.hide();
             }
         }
@@ -146,10 +206,47 @@ Window {
         width: 1920
         height: 1080
         z: 99
-        onCloseMenuRequested: root.isTabActive = false
+        backLog: mainBackLog
+        isLoggedIn: mainWindow.appState !== "login"
+        configLanguage: mainWindow.configLanguage
+        onCloseMenuRequested: mainWindow.isTabActive = false
         onLogoutRequested: {
-            root.appState = "login";
-            root.isTabActive = false;
+            mainWindow.appState = "login";
+            mainWindow.isTabActive = false;
+        }
+    }
+
+    // ─── Global Eye Tracking ───
+    // Use HoverHandler so gaze tracking keeps working across the whole window
+    // (including while MenuPanel is open) without consuming click events.
+    HoverHandler {
+        id: globalGazeTracker
+        target: null
+        acceptedDevices: PointerDevice.Mouse
+        onPointChanged: {
+            if (AppSettings.getInt("Config_EyeTracking", 0) !== 1) return;
+            if (!systemPanel.chatPanel) return;
+            if (!systemPanel.chatPanel.live2DItem) return;
+            var nx = ((point.position.x / mainWindow.width) - 0.5) * 2.0;
+            var ny = ((point.position.y / mainWindow.height) - 0.5) * 2.0;
+            systemPanel.chatPanel.setEyeTracking(
+                Math.max(-0.7, Math.min(0.7, nx)),
+                -Math.max(-0.7, Math.min(0.7, ny))
+            );
+        }
+    }
+
+    // Reset gaze to center when eye tracking is disabled
+    Connections {
+        target: AppSettings
+        function onSettingsChanged(key) {
+            if (key === "Config_EyeTracking") {
+                if (AppSettings.getInt("Config_EyeTracking", 0) !== 1) {
+                    if (systemPanel.chatPanel) {
+                        systemPanel.chatPanel.resetEyeTracking();
+                    }
+                }
+            }
         }
     }
 }

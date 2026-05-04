@@ -9,6 +9,7 @@
 #include "src/memorymanager.h"
 #include "src/aiservice.h"
 #include "src/live2ditem.h"
+#include "src/notificationservice.h"
 
 // ── Force discrete GPU on hybrid systems (NVIDIA Optimus / AMD PowerXpress) ──
 #ifdef _WIN32
@@ -37,12 +38,14 @@ int main(int argc, char *argv[])
     AppSettings  settings;
     MemoryManager memory;
     AIService     aiService;
+    NotificationService notificationService;
 
     QQmlApplicationEngine engine;
 
     engine.rootContext()->setContextProperty("AppSettings",    &settings);
     engine.rootContext()->setContextProperty("MemoryManager",  &memory);
     engine.rootContext()->setContextProperty("AIService",      &aiService);
+    engine.rootContext()->setContextProperty("NotificationService", &notificationService);
     qmlRegisterType<Live2DItem>("Amadeus.Live2D", 1, 0, "Live2DItem");
 
     QObject::connect(

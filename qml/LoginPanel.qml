@@ -7,8 +7,6 @@ Item {
     signal loginAccepted()
 
     // ─── Design constants from Unity MCP data ───────────────────────
-    // Canvas reference: 1920×1080
-    // All Unity units map 1:1 to these reference pixels.
     readonly property real refW: 1920
     readonly property real refH: 1080
     readonly property real scaleX: width  / refW
@@ -22,10 +20,6 @@ Item {
 
 
     // ─── Logo ────────────────────────────────────────────────────────
-    // Unity (canvas 1920×1080): anchorMin=(0.5,1.0) = top-center anchor
-    // anchoredPosition=(0,-340) → logo center is 340px BELOW the top edge
-    // size=700×700 → top of logo = 340-350 = -10px above panel top (slightly clipped)
-    // In QML: center of logo = 340*sc from panel top → y = (340-350)*sc = -10*sc
     Image {
         id: logoImage
         width:  700 * sc
@@ -38,12 +32,6 @@ Item {
     }
 
     // ─── Login Form container (LoginForm node) ───────────────────────
-    // Unity: center anchor, anchoredPosition=(0,-114), in canvas space
-    // Center of form from panel center: (0, -114) = 114 below center
-    // Panel center in panel coords = (panel.width/2, panel.height/2)
-    // Form center Y in panel = panel.height/2 + 114*sc
-    // ─── USER ID Row ───────────────────────────────────────────
-    // UserID_Group: VerticalLayout top item, height=100, Y offset=0
     Item {
         id: userIdGroup
         width:  parent.width
@@ -52,9 +40,6 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.verticalCenterOffset: 131.5 * sc
 
-        // Label: size=220×50, anchoredPosition=(-429,0) from group center
-        // Group center X = parent.width/2
-        // Label center X = parent.width/2 - 429*sc
         Text {
             id: userIdLabel
             text: "USER ID"
@@ -103,8 +88,6 @@ Item {
     }
 
     // ─── PASSWORD Row ─────────────────────────────────────────
-    // Unity VerticalLayout spacing=-30, each group height=100
-    // Password top = UserID top + 100 - 30 = UserID top + 70
     Item {
         id: passwordGroup
         width: parent.width
@@ -161,9 +144,6 @@ Item {
     }
 
     // ─── Login Button ────────────────────────────────────────────────
-    // Unity: Login_Button parent=LoginPanel, anchoredPosition=(334,-184), size=65×65
-    // anchoredPosition is relative to LoginPanel center
-    // QML: x = parentW/2 + 334*sc, y = parentH/2 + 184*sc (positive down)
     Image {
         id: loginButton
         width:  65 * sc
@@ -211,9 +191,6 @@ Item {
             errorText.visible = false
             MemoryManager.setUserName("Salieri")
             loginAccepted()
-        } else if (idInput.text.length === 0 || pwInput.text.length === 0) {
-            errorText.text = "ID AND PASSWORD REQUIRED"
-            errorText.visible = true
         } else {
             errorText.text = "ACCESS DENIED"
             errorText.visible = true

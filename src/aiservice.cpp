@@ -483,6 +483,24 @@ void AIService::sendChat(const QVariantList &messages)
         }
         break;
     }
+    case PROVIDER_OLLAMA: {
+        if (model.isEmpty()) model = "llama3";
+        QString ollamaHost = m_settings.value("Config_OllamaHost", "http://localhost:11434").toString().trimmed();
+        if (ollamaHost.isEmpty()) ollamaHost = "http://localhost:11434";
+        req.setUrl(QUrl(ollamaHost + "/v1/chat/completions"));
+        req.setRawHeader("Authorization", ("Bearer " + apiKey).toUtf8());
+        req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+        body = buildOpenAIBody(messages, model);
+        break;
+    }
+    case PROVIDER_OPENROUTER: {
+        if (model.isEmpty()) model = "openai/gpt-4o";
+        req.setUrl(QUrl("https://openrouter.ai/api/v1/chat/completions"));
+        req.setRawHeader("Authorization", ("Bearer " + apiKey).toUtf8());
+        req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+        body = buildOpenAIBody(messages, model);
+        break;
+    }
     case PROVIDER_VERTEX: {
         // Vertex: mirror Unity flow (gcloud token with cache and path probing).
         // Token acquisition is done asynchronously to avoid UI freezing.
@@ -589,7 +607,9 @@ void AIService::sendChat(const QVariantList &messages)
         QString response;
         switch (provider) {
         case PROVIDER_OPENAI:
-        case PROVIDER_GROQ:    response = extractOpenAIResponse(data); break;
+        case PROVIDER_GROQ:
+        case PROVIDER_OLLAMA:
+        case PROVIDER_OPENROUTER: response = extractOpenAIResponse(data); break;
         case PROVIDER_GEMINI:
         case PROVIDER_VERTEX:  response = extractGeminiResponse(data); break;
         case PROVIDER_CLAUDE:  response = extractClaudeResponse(data); break;
@@ -609,7 +629,7 @@ void AIService::sendChatStreaming(const QVariantList &messages)
     bool webSearch = isWebSearchEnabled();
 
     // Non-streaming providers: fallback to sendChat
-    if (provider != PROVIDER_GROQ && provider != PROVIDER_VERTEX) {
+    if (provider != PROVIDER_GROQ && provider != PROVIDER_VERTEX && provider != PROVIDER_OLLAMA && provider != PROVIDER_OPENROUTER) {
         sendChat(messages);
         return;
     }
@@ -635,6 +655,22 @@ void AIService::sendChatStreaming(const QVariantList &messages)
         } else {
             body = buildOpenAIBody(messages, model, true, true);
         }
+    } else if (provider == PROVIDER_OLLAMA) {
+        if (model.isEmpty()) model = "llama3";
+        QString ollamaHost = m_settings.value("Config_OllamaHost", "http://localhost:11434").toString().trimmed();
+        if (ollamaHost.isEmpty()) ollamaHost = "http://localhost:11434";
+        req.setUrl(QUrl(ollamaHost + "/v1/chat/completions"));
+        req.setRawHeader("Authorization", ("Bearer " + apiKey).toUtf8());
+        req.setRawHeader("Accept", "text/event-stream");
+        req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+        body = buildOpenAIBody(messages, model, true, false);
+    } else if (provider == PROVIDER_OPENROUTER) {
+        if (model.isEmpty()) model = "openai/gpt-4o";
+        req.setUrl(QUrl("https://openrouter.ai/api/v1/chat/completions"));
+        req.setRawHeader("Authorization", ("Bearer " + apiKey).toUtf8());
+        req.setRawHeader("Accept", "text/event-stream");
+        req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+        body = buildOpenAIBody(messages, model, true, false);
     } else {
         // Vertex streaming - acquire token asynchronously to avoid UI freezing
         QString projectId = m_settings.value("Config_VertexProject", "").toString();
@@ -797,9 +833,9 @@ void AIService::sendChatStreaming(const QVariantList &messages)
             if (payload == "[DONE]") { *isDone = true; continue; }
 
             QString tok;
-            if (provider == PROVIDER_GROQ)
+            if (provider == PROVIDER_GROQ || provider == PROVIDER_OLLAMA || provider == PROVIDER_OPENROUTER) {
                 tok = extractStreamToken(payload);
-            else {
+            } else {
                 // Vertex Gemini streaming format
                 QJsonDocument doc = QJsonDocument::fromJson(payload);
                 if (doc.isObject()) {
@@ -828,7 +864,7 @@ void AIService::sendChatStreaming(const QVariantList &messages)
                 QByteArray payload = line.mid(6).trimmed();
                 if (payload == "[DONE]") continue;
                 QString tok;
-                if (provider == PROVIDER_GROQ) {
+                if (provider == PROVIDER_GROQ || provider == PROVIDER_OLLAMA || provider == PROVIDER_OPENROUTER) {
                     tok = extractStreamToken(payload);
                 } else {
                     QJsonDocument doc = QJsonDocument::fromJson(payload);

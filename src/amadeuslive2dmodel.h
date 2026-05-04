@@ -27,6 +27,8 @@ public:
     
     void SetEmotionTag(const QString& emotionTag);
     void SetLipSyncValue(float value);
+    void SetEyeTracking(float eyeX, float eyeY);
+    void SetLightweightMode(bool enabled);
     void Update(float deltaSeconds);
     void Draw(int width, int height);
 

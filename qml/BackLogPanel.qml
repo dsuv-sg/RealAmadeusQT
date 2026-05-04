@@ -10,52 +10,216 @@ Item {
     signal closed()
     focus: true
 
-    // Call this from ChatPanel / MenuPanel to log a message
-    function addLog(role, message) {
-        // Strip emotion tags
-        var clean = message.replace(/\[(NORMAL|SMILE|ANGRY|SAD|SURPRISED|BLUSH|WINK|DISGUST|SMUG|THINKING|PANIC)\]/gi, "").trim();
-        if (clean.length === 0) return;
+    property int configLanguage: AppSettings.getInt("Config_Language", 0)
 
-        var namePrefix, nameColor;
-        switch (role.toLowerCase()) {
-            case "user": case "me":
-                namePrefix = "あなた"; nameColor = "#66ccff"; break;
-            case "assistant": case "kurisu": case "amadeus":
-                namePrefix = "紅莉栖";  nameColor = "#ff6666"; break;
-            default:
-                namePrefix = "SYSTEM"; nameColor = "#888888"; break;
+    FontLoader { id: notoKR; source: "qrc:/qt/qml/RealAmadeusPC/resources/fonts/NotoSerifCJKkr-Regular.otf" }
+
+    function t(ja, en, zh, ko, es, fr, de, ru) {
+        switch(configLanguage) {
+            case 0: return ja;
+            case 1: return en;
+            case 2: return zh;
+            case 3: return ko;
+            case 4: return es;
+            case 5: return fr;
+            case 6: return de;
+            case 7: return ru;
+            default: return ja;
         }
-
-        logModel.append({ "namePrefix": namePrefix, "nameColor": nameColor, "msg": clean });
-        Qt.callLater(function() {
-            logScroll.contentY = Math.max(0, logScroll.contentHeight - logScroll.height);
-        });
     }
 
-    // ─── Background ───
+    function mixedTextHtml(text, pixelSize) {
+        if (!text) return "";
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;")
+                      .replace(/</g, "&lt;")
+                      .replace(/>/g, "&gt;")
+                      .replace(/\n/g, "<br>");
+        }
+
+        function charType(c) {
+            var code = c.charCodeAt(0);
+            if (code >= 0xAC00 && code <= 0xD7AF) return "hangul";
+            if (code >= 0x1100 && code <= 0x11FF) return "hangul";
+            if (code >= 0x3130 && code <= 0x318F) return "hangul";
+            if (code >= 0x0400 && code <= 0x04FF) return "cyrillic";
+            return "other";
+        }
+
+        var html = "";
+        var currentType = "";
+        var currentText = "";
+
+        function flush() {
+            if (currentText.length === 0) return;
+            if (currentType === "hangul") {
+                var family = notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR";
+                html += '<span style="font-family: \'' + family + '\';">' + escapeHtml(currentText) + '</span>';
+            } else if (currentType === "cyrillic") {
+                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: -8.4px;">' + escapeHtml(currentText) + '</span>';
+            } else {
+                html += '<span style="font-family: \'MS Mincho\';">' + escapeHtml(currentText) + '</span>';
+            }
+            currentText = "";
+        }
+
+        for (var i = 0; i < text.length; i++) {
+            var c = text[i];
+            var type = charType(c);
+            if (type !== currentType && currentText.length > 0) {
+                flush();
+            }
+            if (currentText.length === 0) currentType = type;
+            currentText += c;
+        }
+        flush();
+
+        return '<span style="font-size: ' + pixelSize + 'px;">' + html + '</span>';
+    }
+
+    // Wrap Hangul runs in <font face> for StyledText (MS Mincho for everything else)
+    function styledText(text) {
+        if (!text) return "";
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+        function isHangul(c) {
+            var code = c.charCodeAt(0);
+            return (code >= 0xAC00 && code <= 0xD7AF) || (code >= 0x1100 && code <= 0x11FF) || (code >= 0x3130 && code <= 0x318F);
+        }
+        var result = "";
+        var run = "";
+        var runHangul = false;
+        for (var i = 0; i < text.length; i++) {
+            var ch = text[i];
+            var chHangul = isHangul(ch);
+            if (run.length > 0 && chHangul !== runHangul) {
+                var face = runHangul ? (notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR") : "MS Mincho";
+                result += '<font face="' + face + '">' + escapeHtml(run) + '</font>';
+                run = "";
+            }
+            run += ch;
+            runHangul = chHangul;
+        }
+        if (run.length > 0) {
+            var face = runHangul ? (notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR") : "MS Mincho";
+            result += '<font face="' + face + '">' + escapeHtml(run) + '</font>';
+        }
+        return result;
+    }
+
+    // BackLog name rendering:
+    // - Russian only: Cyrillic runs use letter-spacing -6.4px
+    // - Other languages: default spacing
+    function styledNameText(text) {
+        if (!text) return "";
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+        function isHangul(c) {
+            var code = c.charCodeAt(0);
+            return (code >= 0xAC00 && code <= 0xD7AF) || (code >= 0x1100 && code <= 0x11FF) || (code >= 0x3130 && code <= 0x318F);
+        }
+        function isCyrillic(c) {
+            var code = c.charCodeAt(0);
+            return (code >= 0x0400 && code <= 0x04FF);
+        }
+        function charType(c) {
+            if (isHangul(c)) return "hangul";
+            if (configLanguage === 7 && isCyrillic(c)) return "cyrillic";
+            return "other";
+        }
+
+        var result = "";
+        var run = "";
+        var runType = "other";
+
+        function flush() {
+            if (run.length === 0) return;
+            if (runType === "hangul") {
+                var family = notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR";
+                result += '<font face="' + family + '">' + escapeHtml(run) + '</font>';
+            } else if (runType === "cyrillic") {
+                result += '<span style="font-family: \'MS Mincho\'; letter-spacing: -7.4px;">' + escapeHtml(run) + '</span>';
+            } else {
+                result += '<font face="MS Mincho">' + escapeHtml(run) + '</font>';
+            }
+            run = "";
+        }
+
+        for (var i = 0; i < text.length; i++) {
+            var ch = text[i];
+            var type = charType(ch);
+            if (run.length > 0 && type !== runType) {
+                flush();
+            }
+            if (run.length === 0) runType = type;
+            run += ch;
+        }
+        flush();
+        return result;
+    }
+
+    Connections {
+        target: AppSettings
+        function onSettingsChanged(key) {
+            if (key === "Config_Language") { configLanguage = AppSettings.getInt("Config_Language", 0); }
+        }
+    }
+
+    // Unity parity values (BackLogController.cs)
+    readonly property int entrySidePadding: 20
+    readonly property int entryVerticalPadding: 5
+    readonly property int nameColumnWidth: 115
+    readonly property int columnSpacing: 150
+    readonly property int minEntryHeight: 40
+    readonly property int backlogFontSize: 26
+
+    function addLog(role, message) {
+        var clean = message.trim();
+        if (clean.startsWith("[")) {
+            var closeBracket = clean.indexOf("]");
+            if (closeBracket > 0) clean = clean.substring(closeBracket + 1).trim();
+        }
+        clean = clean.replace(/\[(NORMAL|SMILE|ANGRY|SAD|SURPRISED|BLUSH|WINK|DISGUST|SMUG|THINKING|PANIC)\]/gi, "").trim();
+        if (clean.length === 0) return;
+
+        var nameColor;
+        var roleId = role.toLowerCase();
+        switch (roleId) {
+            case "user": case "me": nameColor = "#66CCFF"; break;
+            case "assistant": case "kurisu": case "amadeus": nameColor = "#FF6666"; break;
+            default: nameColor = "#808080"; break;
+        }
+        logModel.append({ "role": roleId, "nameColor": nameColor, "msg": clean });
+        if (root.visible) Qt.callLater(scrollToBottom);
+    }
+
+    function scrollToBottom() {
+        logFlickable.contentY = Math.max(0, logFlickable.contentHeight - logFlickable.height);
+    }
+
     Image {
         anchors.fill: parent
         source: "qrc:/qt/qml/RealAmadeusPC/resources/images/Amadeus_BG.png"
         fillMode: Image.Stretch
     }
 
-    // ─── Header area ───
     Item {
         id: headerRect
-        anchors {
-            top: parent.top; left: parent.left; right: parent.right
-            topMargin: 30; leftMargin: 50; rightMargin: 50
-        }
+        anchors { top: parent.top; left: parent.left; right: parent.right; topMargin: 35; leftMargin: 50; rightMargin: 50 }
         height: 80
-
         Text {
             id: backlogTitle
-            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+            height: parent.height
+            anchors { left: parent.left; top: parent.top }
             text: "BACKLOG"
-            color: "#FFFFFF"
+            color: "#FF9900"
             font { family: "MS Mincho"; pixelSize: 64 }
+            horizontalAlignment: Text.AlignLeft
+            verticalAlignment: Text.AlignVCenter
         }
-
         Rectangle {
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
             height: 2
@@ -63,71 +227,89 @@ Item {
         }
     }
 
-    // ─── Log list ───
-    ScrollView {
-        id: logScroll
-        anchors {
-            top: headerRect.bottom; left: parent.left; right: parent.right; bottom: parent.bottom
-            topMargin: 40; leftMargin: 50; rightMargin: 50; bottomMargin: 150
-        }
+    Flickable {
+        id: logFlickable
+        anchors { top: parent.top; left: parent.left; right: parent.right; bottom: parent.bottom; topMargin: 170; leftMargin: 90; rightMargin: 90; bottomMargin: 180 }
         clip: true
-        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-        ScrollBar.vertical: T.ScrollBar {
-            id: vBar
-            width: 10
-            policy: T.ScrollBar.AlwaysOn
-            parent: root
-            x: logScroll.x + logScroll.width + 30
-            y: logScroll.y
-            height: logScroll.height
-            padding: 0
-            topPadding: 0
-            bottomPadding: 0
-
-            background: Rectangle {
-                color: "#FF9900"
-            }
-            contentItem: Rectangle {
-                implicitWidth: 10
-                color: "#FFFFFF"
-            }
-        }
-
-        Component.onCompleted: {
-            flickableItem.boundsBehavior = Flickable.StopAtBounds
-        }
+        contentWidth: width
+        contentHeight: Math.max(height, logColumn.height)
+        boundsBehavior: Flickable.StopAtBounds
+        flickableDirection: Flickable.VerticalFlick
 
         Column {
             id: logColumn
-            width: logScroll.availableWidth
-            spacing: 20
+            width: logFlickable.width
+            y: Math.max(0, logFlickable.height - height)
+            spacing: 30
 
             Repeater {
                 model: ListModel { id: logModel }
-                delegate: Column {
+                delegate: Item {
                     width: logColumn.width
-                    spacing: 5
+                    height: Math.max(root.minEntryHeight, messageText.implicitHeight + root.entryVerticalPadding * 2)
+                    Rectangle { anchors.fill: parent; color: "transparent" }
 
-                    Text {
-                        text: model.namePrefix
-                        color: model.nameColor || "#FF9900"
-                        font { family: "MS Mincho"; pixelSize: 28 }
+                    Row {
+                        height: parent.height
+                        anchors { fill: parent; leftMargin: root.entrySidePadding; rightMargin: root.entrySidePadding; topMargin: root.entryVerticalPadding; bottomMargin: root.entryVerticalPadding }
+                        spacing: root.columnSpacing
+
+                        Text {
+                            id: nameText
+                            width: root.nameColumnWidth
+                            height: parent.height
+                            anchors.top: parent.top; anchors.topMargin: 5
+                            text: {
+                                switch (model.role) {
+                                    case "user": case "me": return styledNameText(t("\u3042\u306A\u305F", "You", "\u4F60", "\uB2F9\uC2E0", "T\u00FA", "Vous", "Du", "\u0412\u044B"));
+                                    case "assistant": case "kurisu": case "amadeus": return styledNameText(t("\u30A2\u30DE\u30C7\u30A6\u30B9\u7D05\u8389\u6816", "Amadeus Kurisu", "\u963F\u739B\u8FEA\u65AF\u00B7\u7EA2\u8389\u6816", "\uC544\uB9C8\uB370\uC6B0\uC2A4 \uCFE0\uB9AC\uC2A4", "Amadeus Kurisu", "Amadeus Kurisu", "Amadeus Kurisu", "\u0410\u043C\u0430\u0434\u0435\u0443\u0441 \u041A\u0443\u0440\u0438\u0441\u0443"));
+                                    case "system": return "SYSTEM";
+                                    default: return model.role.toUpperCase();
+                                }
+                            }
+                            textFormat: Text.RichText
+                            color: model.nameColor
+                            font { family: "MS Mincho"; pixelSize: root.backlogFontSize; bold: true }
+                            wrapMode: Text.NoWrap
+                            horizontalAlignment: Text.AlignLeft
+                            verticalAlignment: Text.AlignTop
+                        }
+
+                        Text {
+                            id: messageText
+                            width: Math.max(1, parent.width - root.nameColumnWidth - root.columnSpacing)
+                            height: parent.height
+                            anchors.top: parent.top; anchors.topMargin: 5
+                            text: styledText(model.msg)
+                            textFormat: Text.RichText
+                            color: "#FFFFFF"
+                            font { family: "MS Mincho"; pixelSize: root.backlogFontSize }
+                            wrapMode: Text.WordWrap
+                            horizontalAlignment: Text.AlignLeft
+                            verticalAlignment: Text.AlignTop
+                        }
                     }
-
-                    Text {
-                        width: parent.width
-                        text: model.msg
-                        color: "#FFFFFF"
-                        font { family: "MS Mincho"; pixelSize: 24 }
-                        wrapMode: Text.WordWrap
-                        lineHeight: 1.2
-                    }
-
-                    // Bottom margin for the entry
-                    Item { width: 1; height: 10 }
                 }
             }
         }
+    }
+
+    T.ScrollBar {
+        id: vBar
+        width: 10
+        policy: T.ScrollBar.AsNeeded
+        visible: logFlickable.contentHeight > logFlickable.height
+        parent: root
+        x: logFlickable.x + logFlickable.width + 30
+        y: logFlickable.y
+        height: logFlickable.height
+        padding: 0; topPadding: 0; bottomPadding: 0
+        orientation: Qt.Vertical
+        size: logFlickable.visibleArea.heightRatio
+        position: logFlickable.visibleArea.yPosition
+        background: Rectangle { color: "#FFFFFF" }
+        contentItem: Rectangle { implicitWidth: 10; color: "#FF9900" }
+        onPositionChanged: { if (active) logFlickable.contentY = position * logFlickable.contentHeight; }
     }
 
     // ─── Close Button ───
@@ -137,9 +319,10 @@ Item {
         anchors { right: parent.right; rightMargin: 100; bottom: parent.bottom; bottomMargin: 60 }
         Text {
             anchors.centerIn: parent
-            text: "閉じる"
+            text: mixedTextHtml(t("閉じる", "Close", "关闭", "닫기", "Cerrar", "Fermer", "Schließen", "Закрыть"), font.pixelSize)
             color: "#FFFFFF"
-            font { family: "MS Mincho"; pixelSize: 32 }
+            textFormat: Text.RichText
+            font.pixelSize: 32
         }
         MouseArea {
             anchors.fill: parent
@@ -147,27 +330,16 @@ Item {
         }
     }
 
-    Keys.onPressed: (event) => {
-        if (event.key === Qt.Key_Backspace) { root.closed(); event.accepted = true; }
-    }
+    Keys.onPressed: (event) => { if (event.key === Qt.Key_Backspace) { root.closed(); event.accepted = true; } }
 
-    // ─── Fade in/out ───
     opacity: 0
-    onVisibleChanged: { if (visible) { root.opacity = 0; Qt.callLater(function(){ root.opacity = 1; }); } }
-    Behavior on opacity { NumberAnimation { duration: 250 } }
-
-    // ─── Closing logic ───
-    onClosed: {
-        root.opacity = 0;
-        closeTimer.start();
+    Behavior on opacity { NumberAnimation { duration: 200 } }
+    onVisibleChanged: {
+        if (visible) {
+            root.opacity = 0;
+            Qt.callLater(function() { root.opacity = 1; scrollToBottom(); });
+        }
     }
-    Timer {
-        id: closeTimer
-        interval: 250
-        onTriggered: root.visible = false
-    }
-    // Simple fade via visible property - just use opacity directly
-    Behavior on opacity {
-        NumberAnimation { duration: 200 }
-    }
+    onClosed: { root.opacity = 0; closeTimer.start(); }
+    Timer { id: closeTimer; interval: 200; onTriggered: root.visible = false }
 }
