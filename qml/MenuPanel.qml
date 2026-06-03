@@ -17,19 +17,14 @@ Item {
     signal closeMenuRequested()
     signal logoutRequested()
 
-    function t(ja, en, zh, ko, es, fr, de, ru) {
-        switch(configLanguage) {
-            case 0: return ja;
-            case 1: return en;
-            case 2: return zh;
-            case 3: return ko;
-            case 4: return es;
-            case 5: return fr;
-            case 6: return de;
-            case 7: return ru;
-            default: return ja;
+    function t(key, defaultValue) {
+        var trans = Localization.translations;
+        if (trans && trans[key] !== undefined) {
+            return trans[key];
         }
+        return defaultValue || key;
     }
+
 
     Connections {
         target: AppSettings
@@ -280,7 +275,7 @@ Item {
         AppSettings.save();
     }
     function onLogout() {
-        confirmDialog.message = t("ログアウトしますか？", "Do you want to log out?", "您确定要登出吗？", "로그아웃하시겠습니까?", "¿Quieres cerrar sesión?", "Voulez-vous vous déconnecter?", "Möchten Sie sich abmelden?", "Вы хотите выйти?");
+        confirmDialog.message = t("logout_confirm", "ログアウトしますか？");
         confirmDialog.onYes = function() {
             MemoryManager.setUserName("");
             root.logoutRequested();
@@ -289,7 +284,7 @@ Item {
         confirmDialog.visible = true;
     }
     function onShutdown() {
-        confirmDialog.message = t("リアルアマデウスを終了しますか？", "Do you want to exit Real Amadeus?", "要退出Real Amadeus吗？", "Real Amadeus를 종료하시겠습니까?", "¿Quieres salir de Real Amadeus?", "Voulez-vous quitter Real Amadeus?", "Möchten Sie Real Amadeus beenden?", "Вы хотите выйти из Real Amadeus?");
+        confirmDialog.message = t("exit_confirm", "リアルアマデウスを終了しますか？");
         confirmDialog.onYes = function() { Qt.quit(); };
         confirmDialog.visible = true;
     }

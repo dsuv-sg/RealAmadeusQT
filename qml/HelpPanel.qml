@@ -11,21 +11,16 @@ Item {
 
     property int configLanguage: AppSettings.getInt("Config_Language", 0)
 
-    FontLoader { id: notoKR; source: "qrc:/qt/qml/RealAmadeusPC/resources/fonts/NotoSerifCJKkr-Regular.otf" }
+    FontLoader { id: notoKR; source: "file:///" + Qt.application.dirPath + "/resources/fonts/NotoSerifCJKkr-Regular.otf" }
 
-    function t(ja, en, zh, ko, es, fr, de, ru) {
-        switch(configLanguage) {
-            case 0: return ja;
-            case 1: return en;
-            case 2: return zh;
-            case 3: return ko;
-            case 4: return es;
-            case 5: return fr;
-            case 6: return de;
-            case 7: return ru;
-            default: return ja;
+    function t(key, defaultValue) {
+        var trans = Localization.translations;
+        if (trans && trans[key] !== undefined) {
+            return trans[key];
         }
+        return defaultValue || key;
     }
+
 
     // ─── Mixed-font HTML generator (per-character script detection) ───
     // Hangul → Noto Serif, Cyrillic → MS Mincho + letterSpacing -6.4, Other → MS Mincho
@@ -36,6 +31,26 @@ Item {
             return str.replace(/&/g, "&amp;")
                       .replace(/</g, "&lt;")
                       .replace(/>/g, "&gt;");
+        }
+
+        if (Array.isArray(text)) {
+            var html = "";
+            for (var i = 0; i < text.length; i++) {
+                var seg = text[i];
+                var segText = seg.text || "";
+                var segFont = seg.font || "MS Mincho";
+                var segSpacing = seg.letterSpacing !== undefined ? seg.letterSpacing : 0.0;
+                
+                if (segFont === "Noto Serif CJK KR" || segFont === "Noto Serif CJK") {
+                    var family = notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR";
+                    html += '<span style="font-family: \'' + family + '\';">' + escapeHtml(segText) + '</span>';
+                } else if (segSpacing !== 0.0) {
+                    html += '<span style="font-family: \'' + segFont + '\'; letter-spacing: ' + segSpacing + 'px;">' + escapeHtml(segText) + '</span>';
+                } else {
+                    html += '<span style="font-family: \'' + segFont + '\';">' + escapeHtml(segText) + '</span>';
+                }
+            }
+            return '<span style="font-size: ' + pixelSize + 'px;">' + html + '</span>';
         }
 
         function charType(c) {
@@ -143,10 +158,10 @@ Item {
                 Text { text: mixedTextHtml(desc, 28); color: "#E6E6E6"; font.pixelSize: 28; textFormat: Text.RichText }
             }
 
-            HelpEntry { title: "Tab / " + t("右クリック", "Right Click", "右键", "우클릭", "Clic derecho", "Clic droit", "Rechtsklick", "Правый клик"); desc: t("メニュー開閉", "Toggle Menu", "打开/关闭菜单", "메뉴 열기/닫기", "Abrir/cerrar menú", "Ouvrir/fermer menu", "Menü umschalten", "Открыть/закрыть меню") }
-            HelpEntry { title: "Backspace"; desc: t("保存して閉じる", "Save and Close", "保存并关闭", "저장하고 닫기", "Guardar y cerrar", "Sauvegarder et fermer", "Speichern und schließen", "Сохранить и закрыть") }
-            HelpEntry { title: "WASD / ↑←↓→"; desc: t("項目選択", "Select Item", "选择项目", "항목 선택", "Seleccionar elemento", "Sélectionner", "Element auswählen", "Выбор элемента") }
-            HelpEntry { title: "Enter"; desc: t("決定 / 会話を進める", "Confirm / Advance", "确认 / 推进对话", "결정 / 대화 진행", "Confirmar / Avanzar", "Confirmer / Avancer", "Bestätigen / Fortfahren", "Подтвердить / Продолжить") }
+            HelpEntry { title: "Tab / " + t("help_right_click", "右クリック"); desc: t("help_toggle_menu", "メニュー開閉") }
+            HelpEntry { title: "Backspace"; desc: t("help_save_close", "保存して閉じる") }
+            HelpEntry { title: "WASD / ↑←↓→"; desc: t("help_select_item", "項目選択") }
+            HelpEntry { title: "Enter"; desc: t("help_confirm_advance", "決定 / 会話を進める") }
         }
     }
 
@@ -157,7 +172,7 @@ Item {
         anchors { right: parent.right; rightMargin: 100; bottom: parent.bottom; bottomMargin: 60 }
         Text {
             anchors.centerIn: parent
-            text: mixedTextHtml(t("閉じる", "Close", "关闭", "닫기", "Cerrar", "Fermer", "Schließen", "Закрыть"), 32)
+            text: mixedTextHtml(t("close", "閉じる"), 32)
             color: "#FFFFFF"
             font.pixelSize: 32
             textFormat: Text.RichText

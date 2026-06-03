@@ -19,6 +19,8 @@ Item {
     property var  backLog: null
     property bool menuPanelOpen: false
 
+    readonly property var thinkRegex: new RegExp(String.fromCharCode(60) + "think" + String.fromCharCode(62) + "[\\s\\S]*?" + String.fromCharCode(60) + "\\/think" + String.fromCharCode(62), "gi")
+
     // ─── Chat state ───
     // "inputReady" | "waitingAPI" | "typing" | "streamingTyping" | "waitForAdvance"
     property string chatState: "inputReady"
@@ -84,21 +86,16 @@ Item {
     // ─── Network request start time ───
     property real requestStartTime: 0
 
-    FontLoader { id: notoKR; source: "qrc:/qt/qml/RealAmadeusPC/resources/fonts/NotoSerifCJKkr-Regular.otf" }
+    FontLoader { id: notoKR; source: "file:///" + Qt.application.dirPath + "/resources/fonts/NotoSerifCJKkr-Regular.otf" }
 
-    function t(ja, en, zh, ko, es, fr, de, ru) {
-        switch(configLanguage) {
-            case 0: return ja;
-            case 1: return en;
-            case 2: return zh;
-            case 3: return ko;
-            case 4: return es;
-            case 5: return fr;
-            case 6: return de;
-            case 7: return ru;
-            default: return ja;
+    function t(key, defaultValue) {
+        var trans = Localization.translations;
+        if (trans && trans[key] !== undefined) {
+            return trans[key];
         }
+        return defaultValue || key;
     }
+
 
     // ─── Mixed-font HTML generator (per-character script detection) ───
     // Hangul → Noto Serif, Cyrillic → MS Mincho + letterSpacing -6.4, Other → MS Mincho
@@ -110,6 +107,26 @@ Item {
                       .replace(/</g, "&lt;")
                       .replace(/>/g, "&gt;")
                       .replace(/\n/g, "<br>");
+        }
+
+        if (Array.isArray(text)) {
+            var html = "";
+            for (var i = 0; i < text.length; i++) {
+                var seg = text[i];
+                var segText = seg.text || "";
+                var segFont = seg.font || "MS Mincho";
+                var segSpacing = seg.letterSpacing !== undefined ? seg.letterSpacing : 0.0;
+                
+                if (segFont === "Noto Serif CJK KR" || segFont === "Noto Serif CJK") {
+                    var family = notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR";
+                    html += '<span style="font-family: \'' + family + '\';">' + escapeHtml(segText) + '</span>';
+                } else if (segSpacing !== 0.0) {
+                    html += '<span style="font-family: \'' + segFont + '\'; letter-spacing: ' + segSpacing + 'px;">' + escapeHtml(segText) + '</span>';
+                } else {
+                    html += '<span style="font-family: \'' + segFont + '\';">' + escapeHtml(segText) + '</span>';
+                }
+            }
+            return '<span style="font-size: ' + pixelSize + 'px;">' + html + '</span>';
         }
 
         function charType(c) {
@@ -171,7 +188,7 @@ Item {
 
         // Force text refresh to ensure correct language rendering on startup
         Qt.callLater(function() {
-            var name = t("\u30A2\u30DE\u30C7\u30A6\u30B9\u7D05\u8389\u6816", "Amadeus Kurisu", "\u963F\u739B\u8FEA\u65AF\u00B7\u7EA2\u8389\u6816", "\uC544\uB9C8\uB370\uC6B0\uC2A4 \uCFE0\uB9AC\uC2A4", "Amadeus Kurisu", "Amadeus Kurisu", "Amadeus Kurisu", "\u0410\u043C\u0430\u0434\u0435\u0443\u0441 \u041A\u0443\u0440\u0438\u0441\u0443");
+            var name = t("amadeus_kurisu", "アマデウス紅莉栖");
             nameText.text = mixedTextHtml(name, 36);
             forceTextRefresh();
         });
@@ -380,7 +397,7 @@ Item {
         var validTags = ["NORMAL","SMILE","ANGRY","SAD","SURPRISED","BLUSH","WINK","DISGUST","SMUG","THINKING","PANIC"];
         text = text.trim();
         // Also strip think blocks
-        var thinkRegex = new RegExp(String.fromCharCode(60) + "think" + String.fromCharCode(62) + "[\\s\\S]*?" + String.fromCharCode(60) + "\\/think" + String.fromCharCode(62), "gi");
+        var thinkRegex = root.thinkRegex;
         text = text.replace(thinkRegex, "").trim();
         // Strip [TAG] patterns
         var cleaned = text.replace(/\[(NORMAL|SMILE|ANGRY|SAD|SURPRISED|BLUSH|WINK|DISGUST|SMUG|THINKING|PANIC)\]/gi, "").trim();
@@ -438,7 +455,7 @@ Item {
     }
 
     onConfigLanguageChanged: {
-        var name = t("\u30A2\u30DE\u30C7\u30A6\u30B9\u7D05\u8389\u6816", "Amadeus Kurisu", "\u963F\u739B\u8FEA\u65AF\u00B7\u7EA2\u8389\u6816", "\uC544\uB9C8\uB370\uC6B0\uC2A4 \uCFE0\uB9AC\uC2A4", "Amadeus Kurisu", "Amadeus Kurisu", "Amadeus Kurisu", "\u0410\u043C\u0430\u0434\u0435\u0443\u0441 \u041A\u0443\u0440\u0438\u0441\u0443");
+        var name = t("amadeus_kurisu", "アマデウス紅莉栖");
         nameText.text = mixedTextHtml(name, 36);
         Qt.callLater(forceTextRefresh);
     }
@@ -602,7 +619,7 @@ Item {
         root.updateStatusPanelStats(latency);
 
         // Strip thinking tags
-        var thinkRegex = new RegExp(String.fromCharCode(60) + "think" + String.fromCharCode(62) + "[\\s\\S]*?" + String.fromCharCode(60) + "\\/think" + String.fromCharCode(62), "gi");
+        var thinkRegex = root.thinkRegex;
         var text = response.replace(thinkRegex, "").trim();
 
         var tag = parseEmotionTag(text);
@@ -631,7 +648,7 @@ Item {
 
         // Notification
         if (AppSettings.getInt("Config_DesktopNotifications", 1) === 1 && typeof NotificationService !== "undefined" && NotificationService) {
-                NotificationService.show(t("\u30A2\u30DE\u30C7\u30A6\u30B9", "Amadeus", "\u963F\u739B\u8FEA\u65AF", "\uC544\uB9C8\uB370\uC6B0\uC2A4", "Amadeus", "Amadeus", "Amadeus", "\u0410\u043C\u0430\u0434\u0435\u0443\u0441"), display.substring(0, 100));
+                NotificationService.show(t("amadeus", "アマデウス"), display.substring(0, 100));
         }
     }
 
@@ -649,7 +666,7 @@ Item {
             var buf = root.streamBuffer;
 
             // Strip think blocks
-            var thinkRegex = new RegExp(String.fromCharCode(60) + "think" + String.fromCharCode(62) + "[\\s\\S]*?" + String.fromCharCode(60) + "\\/think" + String.fromCharCode(62), "gi");
+            var thinkRegex = root.thinkRegex;
             buf = buf.replace(thinkRegex, "").trim();
 
             // Try to parse emotion tag
@@ -721,7 +738,7 @@ Item {
 
             // Notification
             if (AppSettings.getInt("Config_DesktopNotifications", 1) === 1 && typeof NotificationService !== "undefined" && NotificationService) {
-            NotificationService.show(t("\u30A2\u30DE\u30C7\u30A6\u30B9", "Amadeus", "\u963F\u739B\u8FEA\u65AF", "\uC544\uB9C8\uB370\uC6B0\uC2A4", "Amadeus", "Amadeus", "Amadeus", "\u0410\u043C\u0430\u0434\u0435\u0443\u0441"), display.substring(0, 100));
+            NotificationService.show(t("amadeus", "アマデウス"), display.substring(0, 100));
             }
         }
         // If it was streaming, streamTypewriterTimer will finish on its own since streamComplete is true.
@@ -881,7 +898,7 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
             anchors.verticalCenterOffset: 112
-            text: mixedTextHtml(t("\u30A2\u30DE\u30C7\u30A6\u30B9\u7D05\u8389\u6816", "Amadeus Kurisu", "\u963F\u739B\u8FEA\u65AF\u00B7\u7EA2\u8389\u6816", "\uC544\uB9C8\uB370\uC6B0\uC2A4 \uCFE0\uB9AC\uC2A4", "Amadeus Kurisu", "Amadeus Kurisu", "Amadeus Kurisu", "\u0410\u043C\u0430\u0434\u0435\u0443\u0441 \u041A\u0443\u0440\u0438\u0441\u0443"), 36)
+            text: mixedTextHtml(t("amadeus_kurisu", "アマデウス紅莉栖"), 36)
             textFormat: Text.RichText
             color: "#ffffff"
             font { pixelSize: 36 }
@@ -963,7 +980,7 @@ Item {
                 id: chatInput
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                placeholderText: t("\u30E1\u30C3\u30BB\u30FC\u30B8\u3092\u5165\u529B", "Enter your message...", "\u8F93\u5165\u6D88\u606F...", "\uBA54\uC2DC\uC9C0\uB97C \uC785\uB825\uD558\uC138\uC694...", "Escribe tu mensaje...", "Saisissez votre message...", "Nachricht eingeben...", "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435...")
+                placeholderText: t("enter_message", "メッセージを入力")
                 placeholderTextColor: Qt.rgba(128/255, 128/255, 128/255, 153/255)
                 color: "#ffffff"
                 font { family: "MS Mincho"; pixelSize: 28; italic: chatInput.text.length === 0 }

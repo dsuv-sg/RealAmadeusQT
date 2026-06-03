@@ -12,21 +12,16 @@ Item {
 
     property int configLanguage: AppSettings.getInt("Config_Language", 0)
 
-    FontLoader { id: notoKR; source: "qrc:/qt/qml/RealAmadeusPC/resources/fonts/NotoSerifCJKkr-Regular.otf" }
+    FontLoader { id: notoKR; source: "file:///" + Qt.application.dirPath + "/resources/fonts/NotoSerifCJKkr-Regular.otf" }
 
-    function t(ja, en, zh, ko, es, fr, de, ru) {
-        switch(configLanguage) {
-            case 0: return ja;
-            case 1: return en;
-            case 2: return zh;
-            case 3: return ko;
-            case 4: return es;
-            case 5: return fr;
-            case 6: return de;
-            case 7: return ru;
-            default: return ja;
+    function t(key, defaultValue) {
+        var trans = Localization.translations;
+        if (trans && trans[key] !== undefined) {
+            return trans[key];
         }
+        return defaultValue || key;
     }
+
 
     function mixedTextHtml(text, pixelSize) {
         if (!text) return "";
@@ -36,6 +31,26 @@ Item {
                       .replace(/</g, "&lt;")
                       .replace(/>/g, "&gt;")
                       .replace(/\n/g, "<br>");
+        }
+
+        if (Array.isArray(text)) {
+            var html = "";
+            for (var i = 0; i < text.length; i++) {
+                var seg = text[i];
+                var segText = seg.text || "";
+                var segFont = seg.font || "MS Mincho";
+                var segSpacing = seg.letterSpacing !== undefined ? seg.letterSpacing : 0.0;
+                
+                if (segFont === "Noto Serif CJK KR" || segFont === "Noto Serif CJK") {
+                    var family = notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR";
+                    html += '<span style="font-family: \'' + family + '\';">' + escapeHtml(segText) + '</span>';
+                } else if (segSpacing !== 0.0) {
+                    html += '<span style="font-family: \'' + segFont + '\'; letter-spacing: ' + segSpacing + 'px;">' + escapeHtml(segText) + '</span>';
+                } else {
+                    html += '<span style="font-family: \'' + segFont + '\';">' + escapeHtml(segText) + '</span>';
+                }
+            }
+            return '<span style="font-size: ' + pixelSize + 'px;">' + html + '</span>';
         }
 
         function charType(c) {
@@ -261,8 +276,8 @@ Item {
                             anchors.top: parent.top; anchors.topMargin: 5
                             text: {
                                 switch (model.role) {
-                                    case "user": case "me": return styledNameText(t("\u3042\u306A\u305F", "You", "\u4F60", "\uB2F9\uC2E0", "T\u00FA", "Vous", "Du", "\u0412\u044B"));
-                                    case "assistant": case "kurisu": case "amadeus": return styledNameText(t("\u30A2\u30DE\u30C7\u30A6\u30B9\u7D05\u8389\u6816", "Amadeus Kurisu", "\u963F\u739B\u8FEA\u65AF\u00B7\u7EA2\u8389\u6816", "\uC544\uB9C8\uB370\uC6B0\uC2A4 \uCFE0\uB9AC\uC2A4", "Amadeus Kurisu", "Amadeus Kurisu", "Amadeus Kurisu", "\u0410\u043C\u0430\u0434\u0435\u0443\u0441 \u041A\u0443\u0440\u0438\u0441\u0443"));
+                                    case "user": case "me": return styledNameText(t("you", "あなた"));
+                                    case "assistant": case "kurisu": case "amadeus": return styledNameText(t("amadeus_kurisu", "アマデウス紅莉栖"));
                                     case "system": return "SYSTEM";
                                     default: return model.role.toUpperCase();
                                 }
@@ -319,7 +334,7 @@ Item {
         anchors { right: parent.right; rightMargin: 100; bottom: parent.bottom; bottomMargin: 60 }
         Text {
             anchors.centerIn: parent
-            text: mixedTextHtml(t("閉じる", "Close", "关闭", "닫기", "Cerrar", "Fermer", "Schließen", "Закрыть"), font.pixelSize)
+            text: mixedTextHtml(t("close", "閉じる"), font.pixelSize)
             color: "#FFFFFF"
             textFormat: Text.RichText
             font.pixelSize: 32

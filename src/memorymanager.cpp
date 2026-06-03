@@ -1,5 +1,6 @@
 #include "memorymanager.h"
 #include <QFile>
+#include <QSaveFile>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QStandardPaths>
@@ -199,9 +200,10 @@ void MemoryManager::clearAllMemory()
 
 void MemoryManager::saveMemory()
 {
-    QFile file(m_savePath);
+    QSaveFile file(m_savePath);
     if (file.open(QIODevice::WriteOnly)) {
         file.write(QJsonDocument(m_memory).toJson());
+        file.commit();
     } else {
         qWarning() << "[MemoryManager] Failed to save:" << m_savePath;
     }

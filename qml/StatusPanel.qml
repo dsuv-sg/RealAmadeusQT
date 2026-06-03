@@ -13,21 +13,16 @@ Item {
     property real   llmLatency: -1
     property bool   isLoggedIn: false
     property int    configLanguage: AppSettings.getInt("Config_Language", 0)
-    FontLoader { id: notoKR; source: "qrc:/qt/qml/RealAmadeusPC/resources/fonts/NotoSerifCJKkr-Regular.otf" }
+    FontLoader { id: notoKR; source: "file:///" + Qt.application.dirPath + "/resources/fonts/NotoSerifCJKkr-Regular.otf" }
 
-    function t(ja, en, zh, ko, es, fr, de, ru) {
-        switch(configLanguage) {
-            case 0: return ja;
-            case 1: return en;
-            case 2: return zh;
-            case 3: return ko;
-            case 4: return es;
-            case 5: return fr;
-            case 6: return de;
-            case 7: return ru;
-            default: return ja;
+    function t(key, defaultValue) {
+        var trans = Localization.translations;
+        if (trans && trans[key] !== undefined) {
+            return trans[key];
         }
+        return defaultValue || key;
     }
+
 
     function mixedTextHtml(text, pixelSize) {
         if (!text) return "";
@@ -37,6 +32,26 @@ Item {
                       .replace(/</g, "&lt;")
                       .replace(/>/g, "&gt;")
                       .replace(/\n/g, "<br>");
+        }
+
+        if (Array.isArray(text)) {
+            var html = "";
+            for (var i = 0; i < text.length; i++) {
+                var seg = text[i];
+                var segText = seg.text || "";
+                var segFont = seg.font || "MS Mincho";
+                var segSpacing = seg.letterSpacing !== undefined ? seg.letterSpacing : 0.0;
+                
+                if (segFont === "Noto Serif CJK KR" || segFont === "Noto Serif CJK") {
+                    var family = notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR";
+                    html += '<span style="font-family: \'' + family + '\';">' + escapeHtml(segText) + '</span>';
+                } else if (segSpacing !== 0.0) {
+                    html += '<span style="font-family: \'' + segFont + '\'; letter-spacing: ' + segSpacing + 'px;">' + escapeHtml(segText) + '</span>';
+                } else {
+                    html += '<span style="font-family: \'' + segFont + '\';">' + escapeHtml(segText) + '</span>';
+                }
+            }
+            return '<span style="font-size: ' + pixelSize + 'px;">' + html + '</span>';
         }
 
         function charType(c) {
@@ -249,7 +264,7 @@ Item {
         anchors { right: parent.right; rightMargin: 100; bottom: parent.bottom; bottomMargin: 60 }
         Text {
             anchors.centerIn: parent
-            text: mixedTextHtml(t("閉じる", "Close", "关闭", "닫기", "Cerrar", "Fermer", "Schließen", "Закрыть"), font.pixelSize)
+            text: mixedTextHtml(t("close", "閉じる"), font.pixelSize)
             color: "#FFFFFF"
             textFormat: Text.RichText
             font.pixelSize: 32

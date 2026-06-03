@@ -146,28 +146,28 @@ Item {
 
     // Mutable language-dependent arrays (rebuilt on lang change)
     property var categoryNames: [
-        t("システム", "System", "系统", "시스템", "Sistema", "Système", "System", "Система"),
-        t("テキスト", "Text", "文本", "텍스트", "Texto", "Texte", "Text", "Текст"),
-        t("サウンド", "Sound", "音频", "사운드", "Sonido", "Son", "Sound", "Звук"),
-        t("グラフィック", "Graphics", "图像", "그래픽", "Gráficos", "Graphismes", "Grafik", "Графика"),
-        t("API", "API", "API", "API", "API", "API", "API", "API")
+        t("category_system", "システム"),
+        t("category_text", "テキスト"),
+        t("category_sound", "サウンド"),
+        t("category_graphics", "グラフィック"),
+        t("category_api", "API")
     ]
     property var screenModeModel: [
-        t("フルスクリーン", "Fullscreen", "全屏", "전체 화면", "Pantalla completa", "Plein écran", "Vollbild", "Полный экран"),
-        t("ウィンドウ", "Windowed", "窗口模式", "창 모드", "Modo ventana", "Mode fenêtré", "Fenstermodus", "Оконный режим")
+        t("screen_mode_fullscreen", "フルスクリーン"),
+        t("screen_mode_windowed", "ウィンドウ")
     ]
 
     function rebuildLocalizedArrays() {
         categoryNames = [
-            t("システム", "System", "系统", "시스템", "Sistema", "Système", "System", "Система"),
-            t("テキスト", "Text", "文本", "텍스트", "Texto", "Texte", "Text", "Текст"),
-            t("サウンド", "Sound", "音频", "사운드", "Sonido", "Son", "Sound", "Звук"),
-            t("グラフィック", "Graphics", "图像", "그래픽", "Gráficos", "Graphismes", "Grafik", "Графика"),
-            t("API", "API", "API", "API", "API", "API", "API", "API")
+            t("category_system", "システム"),
+            t("category_text", "テキスト"),
+            t("category_sound", "サウンド"),
+            t("category_graphics", "グラフィック"),
+            t("category_api", "API")
         ];
         screenModeModel = [
-            t("フルスクリーン", "Fullscreen", "全屏", "전체 화면", "Pantalla completa", "Plein écran", "Vollbild", "Полный экран"),
-            t("ウィンドウ", "Windowed", "窗口模式", "창 모드", "Modo ventana", "Mode fenêtré", "Fenstermodus", "Оконный режим")
+            t("screen_mode_fullscreen", "フルスクリーン"),
+            t("screen_mode_windowed", "ウィンドウ")
         ];
     }
 
@@ -180,21 +180,16 @@ Item {
         }
     }
 
-    FontLoader { id: notoKR; source: "qrc:/qt/qml/RealAmadeusPC/resources/fonts/NotoSerifCJKkr-Regular.otf" }
+    FontLoader { id: notoKR; source: "file:///" + Qt.application.dirPath + "/resources/fonts/NotoSerifCJKkr-Regular.otf" }
 
-    function t(ja, en, zh, ko, es, fr, de, ru) {
-        switch(lang) {
-            case 0: return ja;
-            case 1: return en;
-            case 2: return zh;
-            case 3: return ko;
-            case 4: return es;
-            case 5: return fr;
-            case 6: return de;
-            case 7: return ru;
-            default: return ja;
+    function t(key, defaultValue) {
+        var trans = Localization.translations;
+        if (trans && trans[key] !== undefined) {
+            return trans[key];
         }
+        return defaultValue || key;
     }
+
 
     readonly property var providerNames: ["OpenAI", "Google Gemini", "Anthropic Claude", "Groq", "Vertex AI", "Ollama", "OpenRouter"]
 
@@ -411,7 +406,7 @@ Item {
                         visible: root.activeCategory === 0
                         anchors { fill: parent; leftMargin: 40; rightMargin: 40 }
                         spacing: 15
-                        ConfigRow { label: t("表示言語", "Display Language", "显示语言", "표시 언어", "Idioma", "Langue", "Sprache", "Язык"); ConfigComboBox {
+                        ConfigRow { label: t("setting_display_language", "表示言語"); ConfigComboBox {
                             id: languageCombo; model: root.languageNames;
                             contentItem: Text {
                                 id: langComboText
@@ -449,11 +444,11 @@ Item {
                                 }
                             }
                         } }
-                        ConfigRow { label: t("起動画面スキップ", "Skip Loading Screen", "跳过启动画面", "로딩 화면 스킵", "Saltar pantalla de carga", "Passer l'écran de chargement", "Ladebildschirm überspringen", "Пропускать экран загрузки"); ConfigCheckBox { id: skipLoadingToggle } }
-                        ConfigRow { label: t("右クリックメニュー", "Right Click Menu", "右键菜单", "우클릭 메뉴", "Menú clic derecho", "Menu clic droit", "Rechtsklick-Menü", "Меню правой кнопки мыши"); ConfigCheckBox { id: rightClickToggle } }
-                        ConfigRow { label: t("視線トラッキング", "Eye Tracking", "视线追踪", "시선 추적", "Seguimiento de ojos", "Suivi oculaire", "Blick-Tracking", "Трекинг взгляда"); ConfigCheckBox { id: eyeTrackingToggle } }
-                        ConfigRow { label: t("通知を表示", "Show Notifications", "显示通知", "알림 표시", "Mostrar notificaciones", "Afficher les notifications", "Benachrichtigungen anzeigen", "Показывать уведомления"); ConfigCheckBox { id: notificationsToggle } }
-                        ConfigRow { label: t("軽量化モード", "Lightweight Mode", "轻量模式", "경량 모드", "Modo ligero", "Mode léger", "Leichtmodus", "Легкий режим"); ConfigCheckBox { id: lightweightToggle } }
+                        ConfigRow { label: t("setting_skip_loading", "起動画面スキップ"); ConfigCheckBox { id: skipLoadingToggle } }
+                        ConfigRow { label: t("setting_right_click", "右クリックメニュー"); ConfigCheckBox { id: rightClickToggle } }
+                        ConfigRow { label: t("setting_eye_tracking", "視線トラッキング"); ConfigCheckBox { id: eyeTrackingToggle } }
+                        ConfigRow { label: t("setting_show_notifications", "通知を表示"); ConfigCheckBox { id: notificationsToggle } }
+                        ConfigRow { label: t("setting_lightweight", "軽量化モード"); ConfigCheckBox { id: lightweightToggle } }
                         Item { Layout.fillHeight: true }
                     }
 
@@ -462,9 +457,9 @@ Item {
                         visible: root.activeCategory === 1
                         anchors { fill: parent; leftMargin: 40; rightMargin: 40 }
                         spacing: 15
-                        ConfigSliderRow { id: textSpeedRow;  label: t("文字表示速度", "Text Speed", "文字速度", "텍스트 속도", "Velocidad de texto", "Vitesse du texte", "Textgeschwindigkeit", "Скорость текста"); sliderFrom: 0.1; sliderTo: 3.0; sliderStep: 0.1 }
-                        ConfigRow { label: t("オート表示", "Auto Mode", "自动模式", "자동 모드", "Modo automático", "Mode automatique", "Auto-Modus", "Авторежим"); ConfigCheckBox { id: autoModeToggle } }
-                        ConfigSliderRow { id: autoSpeedRow;  label: t("オート待機時間", "Auto Wait Time", "自动等待时间", "자동 대기 시간", "Tiempo de espera", "Temps d'attente", "Wartezeit", "Время ожидания"); sliderFrom: 1.0; sliderTo: 10.0; sliderStep: 0.1; showAsSeconds: true }
+                        ConfigSliderRow { id: textSpeedRow;  label: t("setting_text_speed", "文字表示速度"); sliderFrom: 0.1; sliderTo: 3.0; sliderStep: 0.1 }
+                        ConfigRow { label: t("setting_auto_mode", "オート表示"); ConfigCheckBox { id: autoModeToggle } }
+                        ConfigSliderRow { id: autoSpeedRow;  label: t("setting_auto_speed", "オート待機時間"); sliderFrom: 1.0; sliderTo: 10.0; sliderStep: 0.1; showAsSeconds: true }
                         Item { Layout.fillHeight: true }
                     }
 
@@ -473,10 +468,10 @@ Item {
                         visible: root.activeCategory === 2
                         anchors { fill: parent; leftMargin: 40; rightMargin: 40 }
                         spacing: 15
-                        ConfigSliderRow { id: masterVolRow; label: t("マスター音量", "Master Volume", "主音量", "마스터 볼륨", "Volumen maestro", "Volume principal", "Hauptlautstärke", "Громкость"); sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
-                        ConfigSliderRow { id: bgmVolRow;    label: t("BGM音量", "BGM Volume", "BGM音量", "BGM 볼륨", "Volumen BGM", "Volume BGM", "BGM-Lautstärke", "BGM");     sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
-                        ConfigSliderRow { id: seVolRow;     label: t("SE音量", "SE Volume", "音效音量", "SE 볼륨", "Volumen efectos", "Volume effets", "Effekte", "SE");      sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
-                        ConfigSliderRow { id: voiceVolRow;  label: t("ボイス音量", "Voice Volume", "语音音量", "음성 볼륨", "Volumen de voz", "Volume voix", "Stimme", "Голос");   sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
+                        ConfigSliderRow { id: masterVolRow; label: t("setting_master_vol", "マスター音量"); sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
+                        ConfigSliderRow { id: bgmVolRow;    label: t("setting_bgm_vol", "BGM音量");     sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
+                        ConfigSliderRow { id: seVolRow;     label: t("setting_se_vol", "SE音量");      sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
+                        ConfigSliderRow { id: voiceVolRow;  label: t("setting_voice_vol", "ボイス音量");   sliderFrom: 0; sliderTo: 1; sliderStep: 0.05 }
                         Item { Layout.fillHeight: true }
                     }
 
@@ -485,8 +480,8 @@ Item {
                         visible: root.activeCategory === 3
                         anchors { fill: parent; leftMargin: 40; rightMargin: 40 }
                         spacing: 15
-                        ConfigRow { label: t("画面モード", "Screen Mode", "屏幕模式", "화면 모드", "Modo de pantalla", "Mode d'écran", "Bildschirmmodus", "Экран"); ConfigComboBox { id: screenModeCombo; model: root.screenModeModel } }
-                        ConfigRow { label: t("解像度", "Resolution", "分辨率", "해상도", "Resolución", "Résolution", "Auflösung", "Разрешение"); ConfigComboBox { id: resolutionCombo; model: ["1920x1080", "1600x900", "1280x720"] } }
+                        ConfigRow { label: t("setting_screen_mode", "画面モード"); ConfigComboBox { id: screenModeCombo; model: root.screenModeModel } }
+                        ConfigRow { label: t("setting_resolution", "解像度"); ConfigComboBox { id: resolutionCombo; model: ["1920x1080", "1600x900", "1280x720"] } }
                         Item { Layout.fillHeight: true }
                     }
 
@@ -496,28 +491,19 @@ Item {
                         visible: root.activeCategory === 4
                         anchors { fill: parent; leftMargin: 40; rightMargin: 40 }
                         spacing: 0
-                        ConfigRow { label: t("LLM APIプロバイダ", "LLM API Provider", "LLM提供商", "LLM 제공자", "Proveedor LLM", "Fournisseur LLM", "LLM-Anbieter", "Провайдер"); ConfigComboBox { id: providerCombo; model: root.providerNames; popupMaxHeight: 500; onCurrentIndexChanged: root.onProviderChanged(currentIndex) } }
-                        ConfigRow { label: t("APIキー", "API Key", "API密钥", "API 키", "Clave API", "Clé API", "API-Schlüssel", "Ключ API"); visible: providerCombo.currentIndex !== 4; ConfigTextField { id: apiKeyField; echoMode: TextField.Password } }
-                        ConfigRow { label: t("LLM モデル名", "LLM Model Name", "模型名称", "모델명", "Nombre del modelo", "Nom du modèle", "Modellname", "Имя модели"); ConfigTextField { id: modelNameField } }
-                        ConfigRow { label: t("LLM Web検索", "LLM Web Search", "网络搜索", "웹 검색", "Búsqueda web", "Recherche web", "Websuche", "Веб-поиск"); ConfigCheckBox { id: webSearchToggle } }
-                        ConfigRow { label: t("Vertex Project ID", "Vertex Project ID", "Vertex 项目 ID", "Vertex 프로젝트 ID", "Vertex Project ID", "Vertex Project ID", "Vertex Projekt-ID", "Vertex ID проекта"); visible: providerCombo.currentIndex === 4; ConfigTextField { id: vertexProjectField } }
-                        ConfigRow { label: t("Vertex Location", "Vertex Location", "Vertex 位置", "Vertex 위치", "Vertex Ubicación", "Vertex Emplacement", "Vertex Standort", "Vertex Регион"); visible: providerCombo.currentIndex === 4; ConfigTextField { id: vertexLocationField } }
-                        ConfigRow { label: t("Ollama Host", "Ollama Host", "Ollama 主机", "Ollama 호스트", "Host Ollama", "Hôte Ollama", "Ollama-Host", "Хост Ollama"); visible: providerCombo.currentIndex === 5; ConfigTextField { id: ollamaHostField } }
+                        ConfigRow { label: t("setting_api_provider", "LLM APIプロバイダ"); ConfigComboBox { id: providerCombo; model: root.providerNames; popupMaxHeight: 500; onCurrentIndexChanged: root.onProviderChanged(currentIndex) } }
+                        ConfigRow { label: t("setting_api_key", "APIキー"); visible: true; ConfigTextField { id: apiKeyField; echoMode: TextField.Password } }
+                        ConfigRow { label: t("setting_model_name", "LLM モデル名"); ConfigTextField { id: modelNameField } }
+                        ConfigRow { label: t("setting_web_search", "LLM Web検索"); ConfigCheckBox { id: webSearchToggle } }
+                        ConfigRow { label: t("setting_vertex_project", "Vertex Project ID"); visible: providerCombo.currentIndex === 4; ConfigTextField { id: vertexProjectField } }
+                        ConfigRow { label: t("setting_vertex_location", "Vertex Location"); visible: providerCombo.currentIndex === 4; ConfigTextField { id: vertexLocationField } }
+                        ConfigRow { label: t("setting_ollama_host", "Ollama Host"); visible: providerCombo.currentIndex === 5; ConfigTextField { id: ollamaHostField } }
                         // Unity: VertexInfoText row (info text, no control)
                 Text {
                     visible: providerCombo.currentIndex === 4
                     Layout.preferredHeight: 100
                     Layout.fillWidth: true
-                    text: styledText(t(
-                        "※ Vertexを使用するためには、gCloud CLIのインストールが必要です。",
-                        "* gCloud CLI is required to use Vertex.",
-                        "* 使用Vertex需要安装gCloud CLI。",
-                        "* Vertex를 사용하려면 gCloud CLI가 필요합니다。",
-                        "* Se requiere gCloud CLI.",
-                        "* gCloud CLI est requis.",
-                        "* gCloud CLI wird benötigt.",
-                        "* Требуется gCloud CLI."
-                    ))
+                    text: styledText(t("setting_vertex_note", "※ Vertexを使用するためには、gCloud CLIのインストールが必要です。"))
                     textFormat: Text.StyledText
                     color: "#FFFFFF"
                     font { family: root._fontFamily; pixelSize: 24 }
@@ -542,14 +528,14 @@ Item {
             Text {
                 id: cancelBtnText
                 anchors.centerIn: parent
-                text: styledText(t("キャンセル", "Cancel", "取消", "취소", "Cancelar", "Annuler", "Abbrechen", "Отмена"))
+                text: styledText(t("cancel", "キャンセル"))
                 textFormat: Text.RichText
                 color: "#FFFFFF"
                 font { family: root._fontFamily; pixelSize: 32 }
             }
             MouseArea {
                 anchors.fill: parent
-                onClicked: { AppSettings.setInt("Config_Language", root.originalLang); AppSettings.save(); root.closed(); }
+                onClicked: { root.loadSettings(); root.closed(); }
             }
         }
 
@@ -559,7 +545,7 @@ Item {
             Text {
                 id: applyBtnText
                 anchors.centerIn: parent
-                text: styledText(t("適用", "Apply", "应用", "적용", "Aplicar", "Appliquer", "Anwenden", "Применить"))
+                text: styledText(t("apply", "適用"))
                 textFormat: Text.RichText
                 color: "#FFFFFF"
                 font { family: root._fontFamily; pixelSize: 32 }

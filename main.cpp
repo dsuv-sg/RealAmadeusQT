@@ -10,6 +10,7 @@
 #include "src/aiservice.h"
 #include "src/live2ditem.h"
 #include "src/notificationservice.h"
+#include "src/localizationmanager.h"
 
 // ── Force discrete GPU on hybrid systems (NVIDIA Optimus / AMD PowerXpress) ──
 #ifdef _WIN32
@@ -21,6 +22,7 @@ extern "C" {
 
 int main(int argc, char *argv[])
 {
+    qputenv("QT_QUICK_CONTROLS_STYLE", "Fusion");
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
 
     QSurfaceFormat format;
@@ -39,6 +41,7 @@ int main(int argc, char *argv[])
     MemoryManager memory;
     AIService     aiService;
     NotificationService notificationService;
+    LocalizationManager localization(&settings);
 
     QQmlApplicationEngine engine;
 
@@ -46,6 +49,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("MemoryManager",  &memory);
     engine.rootContext()->setContextProperty("AIService",      &aiService);
     engine.rootContext()->setContextProperty("NotificationService", &notificationService);
+    engine.rootContext()->setContextProperty("Localization",   &localization);
     qmlRegisterType<Live2DItem>("Amadeus.Live2D", 1, 0, "Live2DItem");
 
     QObject::connect(

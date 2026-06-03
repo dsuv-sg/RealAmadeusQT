@@ -22,27 +22,24 @@ static QString ResolveModelDirectory(const QString& modelPath) {
     }
 
     const QString appDir = QCoreApplication::applicationDirPath();
-    const QStringList candidates = {
-        QDir::cleanPath(appDir + "/resources/models/" + modelPath),
-        QDir::cleanPath(QStringLiteral(REALAMADEUS_PROJECT_ROOT) + "/resources/models/" + modelPath),
-        QDir::cleanPath(QStringLiteral(REALAMADEUS_PROJECT_ROOT) + "/../RealAmadeusUnity/Assets/" + modelPath)
-    };
-
-    for (const QString& candidate : candidates) {
-        if (QDir(candidate).exists()) {
-            return candidate;
-        }
+    const QString candidate = QDir::cleanPath(appDir + "/resources/models/" + modelPath);
+    if (QDir(candidate).exists()) {
+        return candidate;
     }
 
-    return QDir::cleanPath(QStringLiteral(REALAMADEUS_PROJECT_ROOT) + "/../RealAmadeusUnity/Assets/" + modelPath);
+    return candidate;
 }
+
 
 class Live2DRenderer final : public QQuickFramebufferObject::Renderer, protected QOpenGLFunctions {
 public:
     Live2DRenderer()
         : m_model(new AmadeusLive2DModel()),
           m_glReady(false),
-          m_lipSyncValue(0.0f) {
+          m_lipSyncValue(0.0f),
+          m_lightweightMode(false),
+          m_eyeX(0.0f),
+          m_eyeY(0.0f) {
         m_timer.start();
     }
 
@@ -65,6 +62,10 @@ public:
         m_lipSyncValue = live2dItem->lipSyncValue();
         m_model->SetEyeTracking(live2dItem->eyeX(), live2dItem->eyeY());
         m_model->SetLightweightMode(live2dItem->lightweightMode());
+        
+        m_lightweightMode = live2dItem->lightweightMode();
+        m_eyeX = live2dItem->eyeX();
+        m_eyeY = live2dItem->eyeY();
     }
 
     void render() override {
@@ -100,7 +101,17 @@ public:
         m_model->Update(deltaSeconds);
         m_model->Draw(m_renderSize.width(), m_renderSize.height());
 
-        update();
+        // Optimize: in lightweight mode, only request update if active lipsync or eye tracking is moving
+        bool needUpdate = true;
+        if (m_lightweightMode) {
+            if (m_lipSyncValue < 0.01f && std::abs(m_eyeX) < 0.01f && std::abs(m_eyeY) < 0.01f) {
+                needUpdate = false;
+            }
+        }
+
+        if (needUpdate) {
+            update();
+        }
     }
 
 private:
@@ -109,9 +120,13 @@ private:
     QString m_modelDir;
     QString m_emotion;
     float m_lipSyncValue;
+    bool m_lightweightMode;
+    float m_eyeX;
+    float m_eyeY;
     QElapsedTimer m_timer;
-    QSize m_renderSize{3840, 2160};
+    QSize m_renderSize{1920, 1080};
 };
+
 
 } // namespace
 

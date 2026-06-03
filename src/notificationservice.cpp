@@ -31,10 +31,15 @@ void NotificationService::ensureTrayIcon()
 
     m_trayIcon = new QSystemTrayIcon(this);
 
-    // Use application icon
     QIcon appIcon = QApplication::windowIcon();
     if (appIcon.isNull()) {
         appIcon = QIcon::fromTheme("dialog-information");
+    }
+    if (appIcon.isNull()) {
+        appIcon = QIcon::fromTheme("preferences-system");
+    }
+    if (appIcon.isNull()) {
+        appIcon = QIcon(":/qt/qml/RealAmadeusPC/resources/images/amadeus_logo_v3.png");
     }
     m_trayIcon->setIcon(appIcon);
     m_trayIcon->setToolTip("Real Amadeus");

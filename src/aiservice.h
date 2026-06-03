@@ -6,6 +6,7 @@
 #include <QVariantList>
 #include <QVariantMap>
 #include <QDateTime>
+#include <QMutex>
 
 /// AIService - mirrors Unity AIService.cs
 /// Supports OpenAI / Gemini / Claude / Groq (+ Groq Compound) / Vertex AI
@@ -13,11 +14,12 @@
 class AIService : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(bool webSearchEnabled READ isWebSearchEnabled CONSTANT)
+    Q_PROPERTY(bool webSearchEnabled READ isWebSearchEnabled NOTIFY webSearchEnabledChanged)
 public:
     explicit AIService(QObject *parent = nullptr);
 
     bool isWebSearchEnabled() const;
+    Q_INVOKABLE void setWebSearchEnabled(bool enabled);
 
     /// Non-streaming chat. Emits responseReceived or errorOccurred.
     Q_INVOKABLE void sendChat(const QVariantList &messages);
@@ -30,6 +32,8 @@ signals:
     void streamToken(const QString &token);
     void streamComplete(const QString &fullResponse);
     void errorOccurred(const QString &error);
+    void httpErrorOccurred(int statusCode, const QString &error);
+    void webSearchEnabledChanged();
 
 private:
     // ─── Builders ───
@@ -61,6 +65,8 @@ private:
     QString m_cachedVertexToken;
     QDateTime m_vertexTokenExpiry;
     QSettings m_settings;
+    mutable QMutex m_settingsMutex;
+    mutable QMutex m_tokenMutex;
 
     static constexpr int PROVIDER_OPENAI    = 0;
     static constexpr int PROVIDER_GEMINI    = 1;

@@ -1,5 +1,6 @@
 #include "aiservice.h"
 #include "appsettings.h"
+#include "securesettings.h"
 
 #include <QNetworkRequest>
 #include <QNetworkReply>
@@ -165,7 +166,17 @@ AIService::AIService(QObject *parent)
 
 bool AIService::isWebSearchEnabled() const
 {
+    QMutexLocker locker(&m_settingsMutex);
     return m_settings.value("Config_WebSearch", 0).toInt() == 1;
+}
+
+void AIService::setWebSearchEnabled(bool enabled)
+{
+    {
+        QMutexLocker locker(&m_settingsMutex);
+        m_settings.setValue("Config_WebSearch", enabled ? 1 : 0);
+    }
+    emit webSearchEnabledChanged();
 }
 
 // ─────────────────────────────────────────────────────
@@ -173,14 +184,18 @@ bool AIService::isWebSearchEnabled() const
 // ─────────────────────────────────────────────────────
 QString AIService::getApiKey(int provider) const
 {
-    QString key = m_settings.value(QString("Config_ApiKey_%1").arg(provider), "").toString();
+    QMutexLocker locker(&m_settingsMutex);
+    QString keyKey = QString("Config_ApiKey_%1").arg(provider);
+    QString key = SecureSettings::getProtectedString(const_cast<QSettings&>(m_settings), keyKey, "");
     if (key.isEmpty())
-        key = m_settings.value("Config_ApiKey", "").toString();
+        key = SecureSettings::getProtectedString(const_cast<QSettings&>(m_settings), "Config_ApiKey", "");
     return key;
 }
 
+
 QString AIService::getModel(int provider) const
 {
+    QMutexLocker locker(&m_settingsMutex);
     QString model = m_settings.value(QString("Config_ModelName_%1").arg(provider), "").toString();
     if (model.isEmpty())
         model = m_settings.value("Config_ModelName", "").toString();
@@ -213,8 +228,11 @@ QString AIService::runGcloudAccessToken(const QString &gcloudPath) const
 
 QString AIService::getVertexAccessToken()
 {
-    if (!m_cachedVertexToken.isEmpty() && QDateTime::currentDateTimeUtc() < m_vertexTokenExpiry) {
-        return m_cachedVertexToken;
+    {
+        QMutexLocker locker(&m_tokenMutex);
+        if (!m_cachedVertexToken.isEmpty() && QDateTime::currentDateTimeUtc() < m_vertexTokenExpiry) {
+            return m_cachedVertexToken;
+        }
     }
 
     QStringList candidates;
@@ -245,6 +263,7 @@ QString AIService::getVertexAccessToken()
         }
         const QString token = runGcloudAccessToken(candidate);
         if (!token.isEmpty()) {
+            QMutexLocker locker(&m_tokenMutex);
             m_cachedVertexToken = token;
             m_vertexTokenExpiry = QDateTime::currentDateTimeUtc().addSecs(kVertexTokenCacheMinutes * 60);
             qInfo() << "[Vertex AI] Access token acquired via" << candidate
@@ -427,6 +446,7 @@ void AIService::processSSEData(const QByteArray &data, QByteArray &/*buf*/,
 // ─────────────────────────────────────────────────────
 void AIService::sendChat(const QVariantList &messages)
 {
+    QMutexLocker locker(&m_settingsMutex);
     int provider = m_settings.value("Config_ApiProvider", 0).toInt();
     QString apiKey = getApiKey(provider);
     QString model  = getModel(provider);
@@ -542,8 +562,9 @@ void AIService::sendChat(const QVariantList &messages)
             auto regionIndex = std::make_shared<int>(0);
             auto errors = std::make_shared<QStringList>();
             auto attempt = std::make_shared<std::function<void()>>();
+            std::weak_ptr<std::function<void()>> weakAttempt = attempt;
 
-            *attempt = [this, projectId, vertexModel, token, targetRegions, vertexBody, regionIndex, errors, attempt]() {
+            *attempt = [this, projectId, vertexModel, token, targetRegions, vertexBody, regionIndex, errors, weakAttempt]() {
                 if (*regionIndex >= targetRegions.size()) {
                     emit errorOccurred(QString("Vertex AI: All regions failed (%1). Errors: %2")
                                            .arg(targetRegions.join(", "), errors->join("; ")));
@@ -559,7 +580,7 @@ void AIService::sendChat(const QVariantList &messages)
 
                 QNetworkReply *vertexReply = m_nam.post(vertexReq, vertexBody);
                 connect(vertexReply, &QNetworkReply::finished, this,
-                        [this, vertexReply, currentRegion, targetRegions, regionIndex, errors, attempt]() {
+                        [this, vertexReply, currentRegion, targetRegions, regionIndex, errors, weakAttempt]() {
                     const int statusCode = vertexReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
                     const QByteArray responseBody = vertexReply->readAll();
                     const QNetworkReply::NetworkError netError = vertexReply->error();
@@ -576,14 +597,20 @@ void AIService::sendChat(const QVariantList &messages)
                         ++(*regionIndex);
 
                         const int jitterMs = QRandomGenerator::global()->bounded(100, 401);
-                        QTimer::singleShot(jitterMs, this, [attempt]() { (*attempt)(); });
+                        QTimer::singleShot(jitterMs, this, [weakAttempt]() {
+                            if (auto sharedAttempt = weakAttempt.lock()) {
+                                (*sharedAttempt)();
+                            }
+                        });
                         return;
                     }
 
+                    emit httpErrorOccurred(statusCode, netErrorText);
                     emit errorOccurred(QString("Vertex AI Error (%1): %2\n%3")
                                            .arg(currentRegion, netErrorText, QString::fromUtf8(responseBody)));
                 });
             };
+
 
             (*attempt)();
         });
@@ -600,6 +627,9 @@ void AIService::sendChat(const QVariantList &messages)
     connect(reply, &QNetworkReply::finished, this, [this, reply, provider]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
+            const int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (statusCode > 0)
+                emit httpErrorOccurred(statusCode, reply->errorString());
             emit errorOccurred(reply->errorString() + "\n" + reply->readAll());
             return;
         }
@@ -623,6 +653,7 @@ void AIService::sendChat(const QVariantList &messages)
 // ─────────────────────────────────────────────────────
 void AIService::sendChatStreaming(const QVariantList &messages)
 {
+    QMutexLocker locker(&m_settingsMutex);
     int provider = m_settings.value("Config_ApiProvider", 0).toInt();
     QString apiKey = getApiKey(provider);
     QString model  = getModel(provider);
@@ -712,8 +743,9 @@ void AIService::sendChatStreaming(const QVariantList &messages)
             auto regionIndex = std::make_shared<int>(0);
             auto errors = std::make_shared<QStringList>();
             auto attempt = std::make_shared<std::function<void()>>();
+            std::weak_ptr<std::function<void()>> weakAttempt = attempt;
 
-            *attempt = [this, projectId, vertexModel, token, targetRegions, vertexBody, regionIndex, errors, attempt]() {
+            *attempt = [this, projectId, vertexModel, token, targetRegions, vertexBody, regionIndex, errors, weakAttempt]() {
                 if (*regionIndex >= targetRegions.size()) {
                     emit errorOccurred(QString("Vertex AI Stream: All regions failed (%1). Errors: %2")
                                            .arg(targetRegions.join(", "), errors->join("; ")));
@@ -755,7 +787,7 @@ void AIService::sendChatStreaming(const QVariantList &messages)
                 });
 
                 connect(vertexReply, &QNetworkReply::finished, this,
-                        [this, vertexReply, currentRegion, regionIndex, errors, attempt, fullResponse, rawBuffer, lastProcessedIndex, gotTokens]() {
+                        [this, vertexReply, currentRegion, regionIndex, errors, weakAttempt, fullResponse, rawBuffer, lastProcessedIndex, gotTokens]() {
                     *rawBuffer += vertexReply->readAll();
 
                     if (rawBuffer->size() > *lastProcessedIndex) {
@@ -784,6 +816,7 @@ void AIService::sendChatStreaming(const QVariantList &messages)
                     }
 
                     if (*gotTokens) {
+                        emit streamComplete(*fullResponse);
                         emit errorOccurred(QString("Vertex AI Stream Interrupted (%1): %2")
                                                .arg(currentRegion, netErrorText));
                         return;
@@ -794,14 +827,21 @@ void AIService::sendChatStreaming(const QVariantList &messages)
                         ++(*regionIndex);
 
                         const int jitterMs = QRandomGenerator::global()->bounded(100, 401);
-                        QTimer::singleShot(jitterMs, this, [attempt]() { (*attempt)(); });
+                        QTimer::singleShot(jitterMs, this, [weakAttempt]() {
+                            if (auto sharedAttempt = weakAttempt.lock()) {
+                                (*sharedAttempt)();
+                            }
+                        });
                         return;
                     }
 
+                    emit streamComplete(*fullResponse);
+                    emit httpErrorOccurred(statusCode, netErrorText);
                     emit errorOccurred(QString("Vertex AI Stream Error (%1): %2\n%3")
                                            .arg(currentRegion, netErrorText, QString::fromUtf8(responseBody)));
                 });
             };
+
 
             (*attempt)();
         });
@@ -813,9 +853,9 @@ void AIService::sendChatStreaming(const QVariantList &messages)
     QNetworkReply *reply = m_nam.post(req, body);
 
     // We accumulate SSE data as it arrives
-    auto *fullResponse = new QString();
-    auto *sseBuffer    = new QByteArray();
-    bool *isDone       = new bool(false);
+    auto fullResponse = std::make_shared<QString>();
+    auto sseBuffer    = std::make_shared<QByteArray>();
+    auto isDone       = std::make_shared<bool>(false);
 
     connect(reply, &QNetworkReply::readyRead, this, [this, reply, fullResponse, sseBuffer, isDone, provider]() {
         QByteArray chunk = reply->readAll();
@@ -825,26 +865,48 @@ void AIService::sendChatStreaming(const QVariantList &messages)
         while (true) {
             int idx = sseBuffer->indexOf('\n');
             if (idx < 0) break;
-            QByteArray line = sseBuffer->left(idx + 1);
-            *sseBuffer = sseBuffer->mid(idx + 1);
+            QByteArray line = sseBuffer->left(idx).trimmed();
 
-            if (!line.startsWith("data: ")) continue;
+            if (line.isEmpty()) {
+                *sseBuffer = sseBuffer->mid(idx + 1);
+                continue;
+            }
+            if (!line.startsWith("data: ")) {
+                *sseBuffer = sseBuffer->mid(idx + 1);
+                continue;
+            }
+
             QByteArray payload = line.mid(6).trimmed();
-            if (payload == "[DONE]") { *isDone = true; continue; }
+            if (payload == "[DONE]") {
+                *isDone = true;
+                *sseBuffer = sseBuffer->mid(idx + 1);
+                continue;
+            }
+
+            // Check if JSON payload is complete and parseable
+            QJsonParseError parseError;
+            QJsonDocument doc = QJsonDocument::fromJson(payload, &parseError);
+            if (doc.isNull() && parseError.error != QJsonParseError::NoError) {
+                // Incomplete JSON chunk, leave it in buffer and wait for next readyRead
+                break;
+            }
+
+            // Safe to consume this line from the buffer
+            *sseBuffer = sseBuffer->mid(idx + 1);
 
             QString tok;
             if (provider == PROVIDER_GROQ || provider == PROVIDER_OLLAMA || provider == PROVIDER_OPENROUTER) {
-                tok = extractStreamToken(payload);
+                QJsonArray choices = doc.object()["choices"].toArray();
+                if (!choices.isEmpty()) {
+                    tok = choices[0].toObject()["delta"].toObject()["content"].toString();
+                }
             } else {
                 // Vertex Gemini streaming format
-                QJsonDocument doc = QJsonDocument::fromJson(payload);
-                if (doc.isObject()) {
-                    QJsonArray cands = doc.object()["candidates"].toArray();
-                    if (!cands.isEmpty()) {
-                        QJsonArray parts = cands[0].toObject()["content"].toObject()["parts"].toArray();
-                        if (!parts.isEmpty())
-                            tok = parts[0].toObject()["text"].toString();
-                    }
+                QJsonArray cands = doc.object()["candidates"].toArray();
+                if (!cands.isEmpty()) {
+                    QJsonArray parts = cands[0].toObject()["content"].toObject()["parts"].toArray();
+                    if (!parts.isEmpty())
+                        tok = parts[0].toObject()["text"].toString();
                 }
             }
             if (!tok.isEmpty()) {
@@ -853,6 +915,7 @@ void AIService::sendChatStreaming(const QVariantList &messages)
             }
         }
     });
+
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, fullResponse, sseBuffer, isDone, provider]() {
         reply->deleteLater();
@@ -881,15 +944,12 @@ void AIService::sendChatStreaming(const QVariantList &messages)
                 if (!tok.isEmpty()) { *fullResponse += tok; emit streamToken(tok); }
             }
         }
-        delete sseBuffer;
-        delete isDone;
 
         if (reply->error() != QNetworkReply::NoError) {
-            delete fullResponse;
+            emit streamComplete(*fullResponse);
             emit errorOccurred(reply->errorString());
             return;
         }
         emit streamComplete(*fullResponse);
-        delete fullResponse;
     });
 }

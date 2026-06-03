@@ -8,10 +8,9 @@
 AudioService::AudioService(QObject *parent)
     : QObject(parent)
 {
-    initializeAudio();
-    
-    // Load saved volume
+    // Load saved volume BEFORE initializing audio
     m_volume = m_settings.value("Config_VoiceVolume", 1.0).toDouble();
+    initializeAudio();
     
     // Setup lip sync timer
     m_lipSyncTimer.setInterval(LIP_SYNC_UPDATE_MS);
@@ -21,6 +20,7 @@ AudioService::AudioService(QObject *parent)
 AudioService::~AudioService()
 {
     stop();
+    QFile::remove(m_tempFilePath);
 }
 
 void AudioService::initializeAudio()
@@ -82,14 +82,18 @@ void AudioService::playFromData(const QByteArray &wavData)
 {
     stop();
     
+    if (!m_tempFilePath.isEmpty()) {
+        QFile::remove(m_tempFilePath);
+        m_tempFilePath.clear();
+    }
+    
     m_currentAudioData = wavData;
     m_audioBuffer = std::make_unique<QBuffer>(&m_currentAudioData);
     m_audioBuffer->open(QIODevice::ReadOnly);
     
-    // Note: QMediaPlayer in Qt6 doesn't directly support QIODevice
-    // We need to save to a temporary file or use a different approach
-    // For now, save to temp file
-    QString tempPath = QDir::tempPath() + "/amadeus_tts_temp.wav";
+    QString tempPath = QDir::tempPath() + QStringLiteral("/amadeus_tts_%1.wav")
+        .arg(QRandomGenerator::global()->generate(), 16, 16, QLatin1Char('0'));
+    m_tempFilePath = tempPath;
     QFile tempFile(tempPath);
     if (tempFile.open(QIODevice::WriteOnly)) {
         tempFile.write(wavData);
@@ -99,6 +103,7 @@ void AudioService::playFromData(const QByteArray &wavData)
         emit errorOccurred("Failed to create temporary audio file");
     }
 }
+
 
 void AudioService::playFromUrl(const QUrl &url)
 {
@@ -120,6 +125,11 @@ void AudioService::stop()
     if (m_audioBuffer) {
         m_audioBuffer->close();
         m_audioBuffer.reset();
+    }
+    
+    if (!m_tempFilePath.isEmpty()) {
+        QFile::remove(m_tempFilePath);
+        m_tempFilePath.clear();
     }
     
     m_isPlaying = false;

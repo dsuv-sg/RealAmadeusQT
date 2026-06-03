@@ -1,0 +1,81 @@
+
+Processing file: qml\BackLogPanel.qml
+  Line 264: Match found for key 'you'
+  Line 265: Match found for key 'amadeus_kurisu'
+  Line 322: Match found for key 'close'
+
+Processing file: qml\ChangeLogPanel.qml
+  Line 574: Match found for key 'close'
+
+Processing file: qml\ChatPanel.qml
+  Line 176: Match found for key 'amadeus_kurisu'
+  Line 443: Match found for key 'amadeus_kurisu'
+  Line 636: Match found for key 'amadeus'
+  Line 726: Match found for key 'amadeus'
+  Line 886: Match found for key 'amadeus_kurisu'
+  Line 968: Match found for key 'enter_message'
+
+Processing file: qml\ConfigPanel.qml
+  Line 149: Match found for key 'category_system'
+  Line 150: Match found for key 'category_text'
+  Line 151: Match found for key 'category_sound'
+  Line 152: Match found for key 'category_graphics'
+  Line 153: Match found for key 'category_api'
+  Line 156: Match found for key 'screen_mode_fullscreen'
+  Line 157: Match found for key 'screen_mode_windowed'
+  Line 162: Match found for key 'category_system'
+  Line 163: Match found for key 'category_text'
+  Line 164: Match found for key 'category_sound'
+  Line 165: Match found for key 'category_graphics'
+  Line 166: Match found for key 'category_api'
+  Line 169: Match found for key 'screen_mode_fullscreen'
+  Line 170: Match found for key 'screen_mode_windowed'
+  Line 414: Match found for key 'setting_display_language'
+  Line 452: Match found for key 'setting_skip_loading'
+  Line 453: Match found for key 'setting_right_click'
+  Line 454: Match found for key 'setting_eye_tracking'
+  Line 455: Match found for key 'setting_show_notifications'
+  Line 456: Match found for key 'setting_lightweight'
+  Line 465: Match found for key 'setting_text_speed'
+  Line 466: Match found for key 'setting_auto_mode'
+  Line 467: Match found for key 'setting_auto_speed'
+  Line 476: Match found for key 'setting_master_vol'
+  Line 477: Match found for key 'setting_bgm_vol'
+  Line 478: Match found for key 'setting_se_vol'
+  Line 479: Match found for key 'setting_voice_vol'
+  Line 488: Match found for key 'setting_screen_mode'
+  Line 489: Match found for key 'setting_resolution'
+  Line 499: Match found for key 'setting_api_provider'
+  Line 500: Match found for key 'setting_api_key'
+  Line 501: Match found for key 'setting_model_name'
+  Line 502: Match found for key 'setting_web_search'
+  Line 503: Match found for key 'setting_vertex_project'
+  Line 504: Match found for key 'setting_vertex_location'
+  Line 505: Match found for key 'setting_ollama_host'
+  Line 511: Match found for key 'setting_vertex_note'
+  Line 545: Match found for key 'cancel'
+  Line 562: Match found for key 'apply'
+
+Processing file: qml\ConfirmationDialog.qml
+  Line 150: Match found for key 'yes'
+  Line 186: Match found for key 'no'
+
+Processing file: qml\HelpPanel.qml
+  Line 146: Match found for key 'help_right_click'
+  Line 146: Match found for key 'help_toggle_menu'
+  Line 147: Match found for key 'help_save_close'
+  Line 148: Match found for key 'help_select_item'
+  Line 149: Match found for key 'help_confirm_advance'
+  Line 160: Match found for key 'close'
+
+Processing file: qml\MenuPanel.qml
+  Line 283: Match found for key 'logout_confirm'
+  Line 292: Match found for key 'exit_confirm'
+
+Processing file: qml\StatusPanel.qml
+  Line 252: Match found for key 'close'
+
+--- RESULTS ---
+Total checked entries: 60
+Unmatched entries in translation_data: 0
+Mismatches found: 0

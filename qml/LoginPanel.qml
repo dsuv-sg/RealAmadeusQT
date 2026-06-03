@@ -18,6 +18,17 @@ Item {
         source: "qrc:/qt/qml/RealAmadeusPC/resources/fonts/MateSC-Regular.ttf"
     }
 
+    function t(key, defaultValue) {
+        if (typeof Localization !== "undefined") {
+            var trans = Localization.translations;
+            if (trans && trans[key] !== undefined) {
+                return trans[key];
+            }
+        }
+        return defaultValue || key;
+    }
+
+
 
     // ─── Logo ────────────────────────────────────────────────────────
     Image {
@@ -42,7 +53,7 @@ Item {
 
         Text {
             id: userIdLabel
-            text: "USER ID"
+            text: t("login_user_id", "USER ID")
             font.family: mateFont.status === FontLoader.Ready ? mateFont.name : "sans-serif"
             font.pixelSize: 29 * sc
             font.bold: true
@@ -98,7 +109,7 @@ Item {
 
         Text {
             id: passwordLabel
-            text: "PASSWORD"
+            text: t("login_password", "PASSWORD")
             font.family: mateFont.status === FontLoader.Ready ? mateFont.name : "sans-serif"
             font.pixelSize: 29 * sc
             font.bold: true
@@ -168,7 +179,7 @@ Item {
     Text {
         id: errorText
         visible: false
-        text: "ACCESS DENIED"
+        text: t("login_access_denied", "ACCESS DENIED")
         color: "#FF0000"
         font.family: mateFont.status === FontLoader.Ready ? mateFont.name : "sans-serif"
         font.pixelSize: 20 * sc
@@ -192,7 +203,7 @@ Item {
             MemoryManager.setUserName("Salieri")
             loginAccepted()
         } else {
-            errorText.text = "ACCESS DENIED"
+            errorText.text = t("login_access_denied", "ACCESS DENIED")
             errorText.visible = true
         }
     }

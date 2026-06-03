@@ -72,6 +72,7 @@ private:
     bool m_isPlaying = false;
     
     QSettings m_settings;
+    QString m_tempFilePath;
     
     static constexpr int LIP_SYNC_UPDATE_MS = 50;
     static constexpr qreal LIP_SYNC_SMOOTHING = 0.3;

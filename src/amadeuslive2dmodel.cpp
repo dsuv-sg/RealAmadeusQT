@@ -5,6 +5,7 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QCoreApplication>
+#include <QRandomGenerator>
 #include <QVector>
 #include <QHash>
 #include <QStringList>
@@ -220,11 +221,17 @@ public:
         }
 
         if (modelDirectory.isEmpty()) {
+            static int warnCount = 0;
+            if (++warnCount <= 5)
+                qInfo() << "[Live2D] EnsureLoaded: empty model directory";
             return false;
         }
 
         QDir dir(modelDirectory);
         if (!dir.exists()) {
+            static int warnCount = 0;
+            if (++warnCount <= 5)
+                qInfo() << "[Live2D] EnsureLoaded: directory not found:" << modelDirectory;
             return false;
         }
 
@@ -234,11 +241,17 @@ public:
             model3Path = dir.filePath(model3Files.first());
         }
         if (model3Path.isEmpty()) {
+            static int warnCount = 0;
+            if (++warnCount <= 5)
+                qInfo() << "[Live2D] EnsureLoaded: no .model3.json in" << modelDirectory;
             return false;
         }
 
         const QByteArray model3Bytes = ReadAllBytes(model3Path);
         if (model3Bytes.isEmpty()) {
+            static int warnCount = 0;
+            if (++warnCount <= 5)
+                qInfo() << "[Live2D] EnsureLoaded: empty model3 file:" << model3Path;
             return false;
         }
 
@@ -275,6 +288,7 @@ public:
             glewExperimental = GL_TRUE;
             const GLenum glewResult = glewInit();
             if (glewResult != GLEW_OK) {
+                qWarning() << "[Live2D] glewInit failed:" << reinterpret_cast<const char*>(glewGetErrorString(glewResult));
                 return false;
             }
             glGetError();
@@ -521,7 +535,7 @@ public:
             _burstTimer += deltaSeconds;
             _burstProgress = qBound(0.0f, _burstTimer / qMax(0.001f, _activeBurst.duration), 1.0f);
             const float t01 = _burstProgress;
-            const float spring = std::sinf(t01 * 3.14159265f * 2.5f) * (1.0f - t01) * (1.0f - t01);
+            const float spring = std::sin(t01 * 3.14159265f * 2.5f) * (1.0f - t01) * (1.0f - t01);
             const float intensity = _activeBurst.intensity * spring;
             burstBodyX = _activeBurst.bodyX * intensity;
             burstBodyY = _activeBurst.bodyY * intensity;
@@ -582,8 +596,8 @@ public:
         const bool isActivelyTyping = _lipSyncValue > 0.01f;
         if (isActivelyTyping) {
             // Unity parity: match exact frequencies and weights from Unity version
-            const float syllable = std::fabs(std::sinf(_userTimeSeconds * 12.0f));
-            const float subBeat = std::fabs(std::sinf(_userTimeSeconds * 7.3f));
+            const float syllable = std::fabs(std::sin(_userTimeSeconds * 12.0f));
+            const float subBeat = std::fabs(std::sin(_userTimeSeconds * 7.3f));
             const float flutter = Noise01(_userTimeSeconds * 8.0f, 5.0f);
             const float rawMouth = syllable * 0.5f + subBeat * 0.3f + flutter * 0.2f;
             const float targetMouth = qBound(0.0f, rawMouth * qBound(0.0f, _lipSyncValue, 1.0f), 1.0f);
@@ -593,7 +607,7 @@ public:
         }
         SetParam(_idMouthOpenY, _mouthOpen);
 
-        SetParam(_idBreath, (std::sinf(_userTimeSeconds * 1.2f) + 1.0f) * 0.5f);
+        SetParam(_idBreath, (std::sin(_userTimeSeconds * 1.2f) + 1.0f) * 0.5f);
 
         // Eye tracking (Unity parity: smooth + body/head influence)
         const float gazeSmoothT = qBound(0.0f, deltaSeconds * 5.0f, 1.0f);
@@ -644,9 +658,9 @@ private:
 
     static float Noise01(float x, float seed) {
         // Keep pseudo-noise continuous to avoid frame-to-frame discontinuities.
-        const float s1 = std::sinf(x * 1.37f + seed * 0.71f);
-        const float s2 = std::sinf(x * 2.11f + seed * 1.13f);
-        const float s3 = std::sinf(x * 0.73f + seed * 2.03f);
+        const float s1 = std::sin(x * 1.37f + seed * 0.71f);
+        const float s2 = std::sin(x * 2.11f + seed * 1.13f);
+        const float s3 = std::sin(x * 0.73f + seed * 2.03f);
         return qBound(0.0f, 0.5f + s1 * 0.28f + s2 * 0.16f + s3 * 0.06f, 1.0f);
     }
 
@@ -662,7 +676,7 @@ private:
     }
 
     static float RandomRange(float minV, float maxV) {
-        const float r = static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX);
+        const float r = static_cast<float>(QRandomGenerator::global()->generateDouble());
         return minV + (maxV - minV) * r;
     }
 
@@ -844,7 +858,7 @@ private:
 
         if (t == QStringLiteral("NORMAL")) {
             bodyX = Drift(phase, 0.6f, 0.0f, 1.8f);
-            bodyY = Drift(phase, 0.4f, 10.0f, 0.8f) + std::sinf(phase * 0.8f) * 0.3f;
+            bodyY = Drift(phase, 0.4f, 10.0f, 0.8f) + std::sin(phase * 0.8f) * 0.3f;
             bodyZ = Drift(phase, 0.35f, 20.0f, 0.6f);
             headX = Drift(phase, 0.5f, 30.0f, 3.0f);
             headY = Drift(phase, 0.4f, 40.0f, 2.0f);
@@ -873,7 +887,7 @@ private:
             headZ = Drift(phase, 0.3f, 53.0f, 1.5f);
         } else if (t == QStringLiteral("SURPRISED")) {
             bodyX = Drift(phase, 1.8f, 6.0f, 3.0f);
-            bodyY = Drift(phase, 1.5f, 16.0f, 1.5f) + std::fabs(std::sinf(phase * 1.5f)) * 0.8f;
+            bodyY = Drift(phase, 1.5f, 16.0f, 1.5f) + std::fabs(std::sin(phase * 1.5f)) * 0.8f;
             bodyZ = Drift(phase, 1.0f, 26.0f, 1.5f);
             headX = Drift(phase, 2.0f, 36.0f, 5.0f);
             headY = Drift(phase, 1.8f, 46.0f, 4.5f);

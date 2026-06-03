@@ -1,9 +1,17 @@
-﻿cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.16)
 
 project(RealAmadeusPC VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
+if(MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zm2000")
+endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Quick Network Widgets Multimedia QuickEffects Concurrent)
 find_package(OpenGL REQUIRED)
@@ -28,12 +36,22 @@ qt_add_executable(appRealAmadeusPC
     src/memorymanager.h
     src/aiservice.cpp
     src/aiservice.h
+    src/audioservice.cpp
+    src/audioservice.h
+    src/securesettings.cpp
+    src/securesettings.h
+    src/sttservice.cpp
+    src/sttservice.h
+    src/ttsservice.cpp
+    src/ttsservice.h
     src/live2ditem.cpp
     src/live2ditem.h
     src/amadeuslive2dmodel.cpp
     src/amadeuslive2dmodel.h
     src/notificationservice.cpp
     src/notificationservice.h
+    src/localizationmanager.cpp
+    src/localizationmanager.h
     ${APP_ICON_RESOURCE}
 )
 
@@ -81,7 +99,14 @@ qt_add_qml_module(appRealAmadeusPC
         resources/fonts/MateSC-Regular.ttf
         resources/fonts/DepartureMono-Regular.otf
         resources/fonts/LiberationSans.ttf
-        resources/fonts/NotoSerifCJKkr-Regular.otf
+        resources/locales/ja.json
+        resources/locales/en.json
+        resources/locales/zh.json
+        resources/locales/ko.json
+        resources/locales/es.json
+        resources/locales/fr.json
+        resources/locales/de.json
+        resources/locales/ru.json
 )
 
 target_include_directories(appRealAmadeusPC PRIVATE src)
@@ -100,9 +125,7 @@ set(CUBISM_CORE_IMPORT_LIB "")
 set(CUBISM_CORE_RUNTIME_LIB "")
 
 if (WIN32)
-    if (MINGW)
-        message(FATAL_ERROR "Windows + Live2D Cubism Core is supported only with MSVC. Please use an MSVC Qt kit.")
-    endif()
+
 
     target_compile_definitions(appRealAmadeusPC PRIVATE CSM_TARGET_WIN_GL)
 
@@ -136,8 +159,20 @@ elseif (UNIX)
 endif()
 
 if (NOT EXISTS "${CUBISM_CORE_IMPORT_LIB}")
-    message(FATAL_ERROR "Live2D Cubism Core library not found for this platform: ${CUBISM_CORE_IMPORT_LIB}")
+    message(FATAL_ERROR
+        "\n================================================================================\n"
+        "Live2D Cubism SDK for Native not found at:\n"
+        "  ${CUBISM_SDK_DIR}\n\n"
+        "To build the project, please follow the Live2D license agreement and download the SDK:\n"
+        "1. Visit the Live2D download page: https://www.live2d.com/sdk/download/native/\n"
+        "2. Accept the terms and download 'Cubism SDK for Native' (version 5-r.4.1).\n"
+        "3. Extract it and place the folder so that 'Core/' is at:\n"
+        "   ${CUBISM_SDK_DIR}/Core\n"
+        "================================================================================\n"
+    )
 endif()
+
+
 
 if (MINGW OR CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(appRealAmadeusPC PRIVATE "-fpermissive")
@@ -155,6 +190,7 @@ target_link_libraries(appRealAmadeusPC
             "${CUBISM_CORE_IMPORT_LIB}"
             glew_s
             OpenGL::GL
+            $<$<PLATFORM_ID:Windows>:crypt32>
 )
 
 add_custom_command(TARGET appRealAmadeusPC POST_BUILD
@@ -166,6 +202,16 @@ add_custom_command(TARGET appRealAmadeusPC POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
     "${CUBISM_SDK_DIR}/Framework/src/Rendering/OpenGL/Shaders/Standard"
     "$<TARGET_FILE_DIR:appRealAmadeusPC>/FrameworkShaders"
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+    "$<TARGET_FILE_DIR:appRealAmadeusPC>/resources/fonts"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/fonts"
+    "$<TARGET_FILE_DIR:appRealAmadeusPC>/resources/fonts"
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+    "$<TARGET_FILE_DIR:appRealAmadeusPC>/resources/locales"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/locales"
+    "$<TARGET_FILE_DIR:appRealAmadeusPC>/resources/locales"
     COMMAND ${CMAKE_COMMAND} -E make_directory
     "$<TARGET_FILE_DIR:appRealAmadeusPC>/resources/models/AmadeusKurisu5.0"
     COMMAND ${CMAKE_COMMAND} -E copy_directory

@@ -12,21 +12,16 @@ Item {
     property int    selectedIndex: 0 // 0: YES, 1: NO
     property int    configLanguage: AppSettings.getInt("Config_Language", 0)
 
-    FontLoader { id: notoKR; source: "qrc:/qt/qml/RealAmadeusPC/resources/fonts/NotoSerifCJKkr-Regular.otf" }
+    FontLoader { id: notoKR; source: "file:///" + Qt.application.dirPath + "/resources/fonts/NotoSerifCJKkr-Regular.otf" }
 
-    function t(ja, en, zh, ko, es, fr, de, ru) {
-        switch(configLanguage) {
-            case 0: return ja;
-            case 1: return en;
-            case 2: return zh;
-            case 3: return ko;
-            case 4: return es;
-            case 5: return fr;
-            case 6: return de;
-            case 7: return ru;
-            default: return ja;
+    function t(key, defaultValue) {
+        var trans = Localization.translations;
+        if (trans && trans[key] !== undefined) {
+            return trans[key];
         }
+        return defaultValue || key;
     }
+
 
     // ─── Mixed-font HTML generator (per-character script detection) ───
     // Hangul → Noto Serif, Other → MS Mincho
@@ -40,6 +35,41 @@ Item {
                       .replace(/</g, "&lt;")
                       .replace(/>/g, "&gt;")
                       .replace(/\r\n|\r|\n/g, "<br>");
+        }
+
+        if (Array.isArray(text)) {
+            var html = "";
+            for (var i = 0; i < text.length; i++) {
+                var seg = text[i];
+                var segText = seg.text || "";
+                var segFont = seg.font || "MS Mincho";
+                var segSpacing = seg.letterSpacing !== undefined ? seg.letterSpacing : 0.0;
+                
+                if (segFont === "Noto Serif CJK KR" || segFont === "Noto Serif CJK") {
+                    var family = notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR";
+                    html += '<span style="font-family: \'' + family + '\';">' + escapeHtml(segText) + '</span>';
+                } else if (segSpacing !== 0.0) {
+                    html += '<span style="font-family: \'' + segFont + '\'; letter-spacing: ' + segSpacing + 'px;">' + escapeHtml(segText) + '</span>';
+                } else if (applyRussianSpacing && segFont === "MS Mincho") {
+                    // Check if Cyrillic run
+                    var runIsCyrillic = false;
+                    for (var j = 0; j < segText.length; j++) {
+                        var code = segText.charCodeAt(j);
+                        if (code >= 0x0400 && code <= 0x04FF) {
+                            runIsCyrillic = true;
+                            break;
+                        }
+                    }
+                    if (runIsCyrillic) {
+                        html += '<span style="font-family: \'MS Mincho\'; letter-spacing: -8.4px;">' + escapeHtml(segText) + '</span>';
+                    } else {
+                        html += '<span style="font-family: \'MS Mincho\';">' + escapeHtml(segText) + '</span>';
+                    }
+                } else {
+                    html += '<span style="font-family: \'' + segFont + '\';">' + escapeHtml(segText) + '</span>';
+                }
+            }
+            return '<span style="font-size: ' + pixelSize + 'px;">' + html + '</span>';
         }
 
         function charType(c) {
@@ -147,7 +177,7 @@ Item {
                 id: yesButtonText
                 anchors.centerIn: parent
                 enabled: false
-                text: mixedTextHtml(t("はい", "Yes", "是", "예", "Sí", "Oui", "Ja", "Да"), 30)
+                text: mixedTextHtml(t("yes", "はい"), 30)
                 textFormat: Text.RichText
                 color: root.selectedIndex === 0 ? "#000000" : "#FFFFFF"
                 font.pixelSize: 30
@@ -183,7 +213,7 @@ Item {
                 id: noButtonText
                 anchors.centerIn: parent
                 enabled: false
-                text: mixedTextHtml(t("いいえ", "No", "否", "아니오", "No", "Non", "Nein", "Нет"), 30)
+                text: mixedTextHtml(t("no", "いいえ"), 30)
                 textFormat: Text.RichText
                 color: root.selectedIndex === 1 ? "#000000" : "#FFFFFF"
                 font.pixelSize: 30

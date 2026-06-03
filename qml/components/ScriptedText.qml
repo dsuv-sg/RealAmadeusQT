@@ -14,10 +14,10 @@ Text {
     font.family: (typeof NotoKRFamily !== 'undefined' && NotoKRFamily ? NotoKRFamily : "MS Mincho")
 
     // Load Noto CJK fonts from resources (qrc)
-    FontLoader { id: notoSC; source: "qrc:/qt/qml/RealAmadeusPC/resources/fonts/NotoSerifCJKsc-Regular.otf" }
-    FontLoader { id: notoTC; source: "qrc:/qt/qml/RealAmadeusPC/resources/fonts/NotoSerifCJKtc-Regular.otf" }
-    FontLoader { id: notoHK; source: "qrc:/qt/qml/RealAmadeusPC/resources/fonts/NotoSerifCJKhk-Regular.otf" }
-    FontLoader { id: notoKR; source: "qrc:/qt/qml/RealAmadeusPC/resources/fonts/NotoSerifCJKkr-Regular.otf" }
+    FontLoader { id: notoSC; source: "file:///" + Qt.application.dirPath + "/resources/fonts/NotoSerifCJKsc-Regular.otf" }
+    FontLoader { id: notoTC; source: "file:///" + Qt.application.dirPath + "/resources/fonts/NotoSerifCJKtc-Regular.otf" }
+    FontLoader { id: notoHK; source: "file:///" + Qt.application.dirPath + "/resources/fonts/NotoSerifCJKhk-Regular.otf" }
+    FontLoader { id: notoKR; source: "file:///" + Qt.application.dirPath + "/resources/fonts/NotoSerifCJKkr-Regular.otf" }
 
     // Exposed family names (updated when loaders are ready)
     property string notoSCFamily: (notoSC.status === FontLoader.Ready ? notoSC.name : (typeof NotoSCFamily !== 'undefined' ? NotoSCFamily : "Noto Serif CJK SC"))
