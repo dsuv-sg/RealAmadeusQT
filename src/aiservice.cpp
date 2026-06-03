@@ -446,8 +446,17 @@ void AIService::processSSEData(const QByteArray &data, QByteArray &/*buf*/,
 // ─────────────────────────────────────────────────────
 void AIService::sendChat(const QVariantList &messages)
 {
-    QMutexLocker locker(&m_settingsMutex);
-    int provider = m_settings.value("Config_ApiProvider", 0).toInt();
+    int provider;
+    QString customUrl;
+    {
+        QMutexLocker locker(&m_settingsMutex);
+        provider = m_settings.value("Config_ApiProvider", 0).toInt();
+        customUrl = m_settings.value(QString("Config_CustomEndpoint_%1").arg(provider), "").toString().trimmed();
+        if (customUrl.isEmpty()) {
+            customUrl = m_settings.value("Config_CustomEndpoint", "").toString().trimmed();
+        }
+    }
+
     QString apiKey = getApiKey(provider);
     QString model  = getModel(provider);
     bool webSearch = isWebSearchEnabled();
@@ -456,11 +465,6 @@ void AIService::sendChat(const QVariantList &messages)
     if (apiKey.isEmpty() && provider != PROVIDER_VERTEX && provider != PROVIDER_OLLAMA) {
         emit errorOccurred("API Key が設定されていません。CONFIGから設定してください。");
         return;
-    }
-
-    QString customUrl = m_settings.value(QString("Config_CustomEndpoint_%1").arg(provider), "").toString().trimmed();
-    if (customUrl.isEmpty()) {
-        customUrl = m_settings.value("Config_CustomEndpoint", "").toString().trimmed();
     }
 
     QNetworkRequest req;
@@ -668,10 +672,6 @@ void AIService::sendChatStreaming(const QVariantList &messages)
     {
         QMutexLocker locker(&m_settingsMutex);
         provider = m_settings.value("Config_ApiProvider", 0).toInt();
-        apiKey = getApiKey(provider);
-        model  = getModel(provider);
-        webSearch = isWebSearchEnabled();
-
         customUrl = m_settings.value(QString("Config_CustomEndpoint_%1").arg(provider), "").toString().trimmed();
         if (customUrl.isEmpty()) {
             customUrl = m_settings.value("Config_CustomEndpoint", "").toString().trimmed();
@@ -681,6 +681,10 @@ void AIService::sendChatStreaming(const QVariantList &messages)
         vertexProject = m_settings.value("Config_VertexProject", "").toString();
         vertexLocation = m_settings.value("Config_VertexLocation", "us-central1").toString();
     }
+
+    apiKey = getApiKey(provider);
+    model  = getModel(provider);
+    webSearch = isWebSearchEnabled();
 
     // Non-streaming providers: fallback to sendChat
     if (provider != PROVIDER_GROQ && provider != PROVIDER_VERTEX && provider != PROVIDER_OLLAMA && provider != PROVIDER_OPENROUTER) {
