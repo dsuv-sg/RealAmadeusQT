@@ -452,8 +452,8 @@ void AIService::sendChat(const QVariantList &messages)
     QString model  = getModel(provider);
     bool webSearch = isWebSearchEnabled();
 
-    // Vertex uses gcloud token, handled separately
-    if (apiKey.isEmpty() && provider != PROVIDER_VERTEX) {
+    // Vertex & Ollama do not require an API key
+    if (apiKey.isEmpty() && provider != PROVIDER_VERTEX && provider != PROVIDER_OLLAMA) {
         emit errorOccurred("API Key が設定されていません。CONFIGから設定してください。");
         return;
     }
@@ -554,10 +554,6 @@ void AIService::sendChat(const QVariantList &messages)
             QString token = watcher->result();
             watcher->deleteLater();
 
-            if (token.isEmpty()) {
-                // Fallback to manual key in Config when gcloud retrieval fails
-                token = getApiKey(PROVIDER_VERTEX);
-            }
             if (token.isEmpty()) {
                 emit errorOccurred("Vertex AI: アクセストークンの取得に失敗しました。\n"
                                    "gcloud CLI がインストールされ、gcloud auth login 済みか確認してください。");
@@ -692,7 +688,7 @@ void AIService::sendChatStreaming(const QVariantList &messages)
         return;
     }
 
-    if (apiKey.isEmpty() && provider != PROVIDER_VERTEX) {
+    if (apiKey.isEmpty() && provider != PROVIDER_VERTEX && provider != PROVIDER_OLLAMA) {
         emit errorOccurred("API Key が設定されていません。CONFIGから設定してください。");
         return;
     }
@@ -753,9 +749,6 @@ void AIService::sendChatStreaming(const QVariantList &messages)
             QString token = watcher->result();
             watcher->deleteLater();
 
-            if (token.isEmpty()) {
-                token = getApiKey(PROVIDER_VERTEX);
-            }
             if (token.isEmpty()) {
                 emit errorOccurred("Vertex AI: アクセストークンの取得に失敗しました。\n"
                                    "gcloud CLI がインストールされ、gcloud auth login 済みか確認してください。");

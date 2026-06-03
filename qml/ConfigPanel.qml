@@ -492,7 +492,7 @@ Item {
                         anchors { fill: parent; leftMargin: 40; rightMargin: 40 }
                         spacing: 0
                         ConfigRow { label: t("setting_api_provider", "LLM APIプロバイダ"); ConfigComboBox { id: providerCombo; model: root.providerNames; popupMaxHeight: 500; onCurrentIndexChanged: root.onProviderChanged(currentIndex) } }
-                        ConfigRow { label: t("setting_api_key", "APIキー"); visible: true; ConfigTextField { id: apiKeyField; echoMode: TextField.Password } }
+                        ConfigRow { label: t("setting_api_key", "APIキー"); visible: providerCombo.currentIndex !== 4 && providerCombo.currentIndex !== 5; ConfigTextField { id: apiKeyField; echoMode: TextField.Password } }
                         ConfigRow { label: t("setting_model_name", "LLM モデル名"); ConfigTextField { id: modelNameField } }
                         ConfigRow { label: t("setting_web_search", "LLM Web検索"); ConfigCheckBox { id: webSearchToggle } }
                         ConfigRow { label: t("setting_vertex_project", "Vertex Project ID"); visible: providerCombo.currentIndex === 4; ConfigTextField { id: vertexProjectField } }
