@@ -466,6 +466,7 @@ void AIService::sendChat(const QVariantList &messages)
     QNetworkRequest req;
     QByteArray body;
 
+    switch (provider) {
     case PROVIDER_OPENAI: {
         if (model.isEmpty()) model = "gpt-4o";
         req.setUrl(QUrl(customUrl.isEmpty() ? "https://api.openai.com/v1/chat/completions" : customUrl));

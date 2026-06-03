@@ -101,19 +101,8 @@ ApplicationWindow {
         }
     }
 
-    // ─── Global UI scaling ───
-    readonly property real uiScale: mainWindow.width / 1920.0
-
     Component.onCompleted: {
-        contentItem.transform = [scaleXform];
         applyScreenSettings();
-    }
-    Scale {
-        id: scaleXform
-        xScale: mainWindow.uiScale
-        yScale: mainWindow.uiScale
-        origin.x: 0
-        origin.y: 0
     }
 
     // ─── Key handling ───
@@ -162,57 +151,72 @@ ApplicationWindow {
         }
     }
 
-    // ─── BackLog Panel (Shared) ───
-    BackLogPanel {
-        id: mainBackLog
-        z: 100
-        visible: false
+    // ─── Global UI scaling and Letterboxing/Pillarboxing (16:9) ───
+    Item {
+        id: rootContainer
         width: 1920
         height: 1080
-        configLanguage: mainWindow.configLanguage
-    }
+        anchors.centerIn: parent
 
-    // ─── System Panel ───
-    SystemPanel {
-        id: systemPanel
-        width: 1920
-        height: 1080
-        enabled: !mainWindow.isTabActive
+        transform: Scale {
+            origin.x: 960
+            origin.y: 540
+            xScale: Math.min(mainWindow.width / 1920.0, mainWindow.height / 1080.0)
+            yScale: xScale
+        }
 
-        appState: mainWindow.appState
-        autoMode: mainWindow.autoMode
-        autoSpeed: mainWindow.autoSpeed
-        isTabActive: mainWindow.isTabActive
-        menuPanelOpen: menuPanel.menuOpen
-        backLog: mainBackLog
-        configLanguage: mainWindow.configLanguage
+        // ─── BackLog Panel (Shared) ───
+        BackLogPanel {
+            id: mainBackLog
+            z: 100
+            visible: false
+            width: 1920
+            height: 1080
+            configLanguage: mainWindow.configLanguage
+        }
 
-        onLoginAccepted: mainWindow.appState = "boot"
-        onBootFinished: mainWindow.appState = "chat"
-        onOpenMenuRequested: menuPanel.show()
-        
-        onSystemAnimProgressChanged: {
-            if (mainWindow.isTabActive && systemAnimProgress >= 0.95 && !menuPanel.menuOpen) {
-                menuPanel.show();
-            } else if (!mainWindow.isTabActive && menuPanel.menuOpen) {
-                menuPanel.hide();
+        // ─── System Panel ───
+        SystemPanel {
+            id: systemPanel
+            width: 1920
+            height: 1080
+            enabled: !mainWindow.isTabActive
+
+            appState: mainWindow.appState
+            autoMode: mainWindow.autoMode
+            autoSpeed: mainWindow.autoSpeed
+            isTabActive: mainWindow.isTabActive
+            menuPanelOpen: menuPanel.menuOpen
+            backLog: mainBackLog
+            configLanguage: mainWindow.configLanguage
+
+            onLoginAccepted: mainWindow.appState = "boot"
+            onBootFinished: mainWindow.appState = "chat"
+            onOpenMenuRequested: menuPanel.show()
+            
+            onSystemAnimProgressChanged: {
+                if (mainWindow.isTabActive && systemAnimProgress >= 0.95 && !menuPanel.menuOpen) {
+                    menuPanel.show();
+                } else if (!mainWindow.isTabActive && menuPanel.menuOpen) {
+                    menuPanel.hide();
+                }
             }
         }
-    }
 
-    // ─── Menu Panel ───
-    MenuPanel {
-        id: menuPanel
-        width: 1920
-        height: 1080
-        z: 99
-        backLog: mainBackLog
-        isLoggedIn: mainWindow.appState !== "login"
-        configLanguage: mainWindow.configLanguage
-        onCloseMenuRequested: mainWindow.isTabActive = false
-        onLogoutRequested: {
-            mainWindow.appState = "login";
-            mainWindow.isTabActive = false;
+        // ─── Menu Panel ───
+        MenuPanel {
+            id: menuPanel
+            width: 1920
+            height: 1080
+            z: 99
+            backLog: mainBackLog
+            isLoggedIn: mainWindow.appState !== "login"
+            configLanguage: mainWindow.configLanguage
+            onCloseMenuRequested: mainWindow.isTabActive = false
+            onLogoutRequested: {
+                mainWindow.appState = "login";
+                mainWindow.isTabActive = false;
+            }
         }
     }
 
