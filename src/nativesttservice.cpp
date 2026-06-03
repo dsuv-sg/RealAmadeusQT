@@ -11,6 +11,8 @@
 #include <cmath>
 #include <algorithm>
 #include <thread>
+#include <QtConcurrent>
+#include <QFutureWatcher>
 
 NativeSTTService::NativeSTTService(QObject *parent)
     : QObject(parent)
@@ -129,6 +131,54 @@ void NativeSTTService::startRecording()
     qDebug() << "[NativeSTTService] Recording started";
 }
 
+// Static helper to avoid accessing NativeSTTService* in a background thread
+static QPair<QString, QString> doWhisperTranscriptionBackground(const QString &modelPath, const QByteArray &wavData) {
+    struct whisper_context_params cparams = whisper_context_default_params();
+    struct whisper_context *ctx = whisper_init_from_file_with_params(modelPath.toUtf8().constData(), cparams);
+    if (!ctx) {
+        return qMakePair(QString(), QString("Failed to initialize Whisper context"));
+    }
+
+    // Convert WAV bytes to float samples (skip 44-byte header)
+    QByteArray pcmData = wavData.mid(44);
+    const qint16 *samples = reinterpret_cast<const qint16*>(pcmData.constData());
+    int nSamples = pcmData.size() / sizeof(qint16);
+    QVector<float> fSamples(nSamples);
+    for (int i = 0; i < nSamples; ++i) fSamples[i] = samples[i] / 32768.0f;
+
+    struct whisper_full_params wparams = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
+    wparams.print_progress = false;
+    wparams.print_special = false;
+    wparams.print_realtime = false;
+    wparams.translate = false;
+    wparams.language = "ja";
+    wparams.n_threads = std::max(1, (int)std::thread::hardware_concurrency() / 2);
+
+    int ret = whisper_full(ctx, wparams, fSamples.constData(), fSamples.size());
+
+    QString resultText;
+    if (ret == 0) {
+        int n = whisper_full_n_segments(ctx);
+        for (int i = 0; i < n; ++i) {
+            const char* txt = whisper_full_get_segment_text(ctx, i);
+            if (txt) resultText += QString::fromUtf8(txt);
+        }
+    }
+
+    whisper_free(ctx);
+
+    if (ret != 0) {
+        return qMakePair(QString(), QString("Whisper transcription failed"));
+    }
+
+    resultText = resultText.trimmed();
+    if (resultText.isEmpty()) {
+        return qMakePair(QString(), QString("No speech detected"));
+    }
+
+    return qMakePair(resultText, QString());
+}
+
 void NativeSTTService::stopRecording()
 {
     if (!m_isRecording) return;
@@ -146,8 +196,31 @@ void NativeSTTService::stopRecording()
     if (m_audioData.size() > 1000) {
         QByteArray wavData = createWavHeader(m_audioData.size(), SAMPLE_RATE, CHANNELS, BITS_PER_SAMPLE);
         wavData.append(m_audioData);
-        if (!transcribeWithWhisper(wavData)) {
-            emit transcriptionError("Whisper transcription failed");
+
+        QString modelPath = resolveWhisperModelPath();
+        if (modelPath.isEmpty()) {
+            emit transcriptionError("Whisper model file not found");
+        } else {
+            // Asynchronously transcribe audio in a worker thread
+            auto watcher = new QFutureWatcher<QPair<QString, QString>>(this);
+            connect(watcher, &QFutureWatcher<QPair<QString, QString>>::finished, this, [this, watcher]() {
+                QPair<QString, QString> res = watcher->result();
+                watcher->deleteLater();
+
+                QString text = res.first;
+                QString error = res.second;
+
+                if (!error.isEmpty()) {
+                    emit transcriptionError(error);
+                } else {
+                    emit transcriptionComplete(text);
+                }
+            });
+
+            QFuture<QPair<QString, QString>> future = QtConcurrent::run([modelPath, wavData]() {
+                return doWhisperTranscriptionBackground(modelPath, wavData);
+            });
+            watcher->setFuture(future);
         }
     } else {
         emit transcriptionError("Recording too short");
@@ -207,64 +280,7 @@ qreal NativeSTTService::calculateAudioLevel(const QByteArray &data)
     return (sum / sampleCount) / 32768.0;
 }
 
-bool NativeSTTService::transcribeWithWhisper(const QByteArray &wavData)
-{
-    QString modelPath = resolveWhisperModelPath();
-    if (modelPath.isEmpty()) {
-        emit transcriptionError("Whisper model file not found");
-        return false;
-    }
-
-    struct whisper_context_params cparams = whisper_context_default_params();
-    struct whisper_context *ctx = whisper_init_from_file_with_params(modelPath.toUtf8().constData(), cparams);
-    if (!ctx) {
-        qWarning() << "[NativeSTTService] Failed to initialize Whisper context";
-        emit transcriptionError("Failed to initialize Whisper context");
-        return false;
-    }
-
-    // Convert WAV bytes to float samples (skip 44-byte header)
-    QByteArray pcmData = wavData.mid(44);
-    const qint16 *samples = reinterpret_cast<const qint16*>(pcmData.constData());
-    int nSamples = pcmData.size() / sizeof(qint16);
-    QVector<float> fSamples(nSamples);
-    for (int i = 0; i < nSamples; ++i) fSamples[i] = samples[i] / 32768.0f;
-
-    struct whisper_full_params wparams = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
-    wparams.print_progress = false;
-    wparams.print_special = false;
-    wparams.print_realtime = false;
-    wparams.translate = false;
-    wparams.language = "ja";
-    wparams.n_threads = std::max(1, (int)std::thread::hardware_concurrency() / 2);
-
-    int ret = whisper_full(ctx, wparams, fSamples.constData(), fSamples.size());
-
-    QString resultText;
-    if (ret == 0) {
-        int n = whisper_full_n_segments(ctx);
-        for (int i = 0; i < n; ++i) {
-            const char* txt = whisper_full_get_segment_text(ctx, i);
-            if (txt) resultText += QString::fromUtf8(txt);
-        }
-    }
-
-    whisper_free(ctx);
-
-    if (ret != 0) {
-        qWarning() << "[NativeSTTService] Whisper full failed with code" << ret;
-        emit transcriptionError("Whisper transcription failed");
-        return false;
-    }
-
-    resultText = resultText.trimmed();
-    if (!resultText.isEmpty()) {
-        emit transcriptionComplete(resultText);
-    } else {
-        emit transcriptionError("No speech detected");
-    }
-    return true;
-}
+// transcribeWithWhisper removed in favor of static doWhisperTranscriptionBackground
 
 QString NativeSTTService::resolveWhisperModelPath() const
 {

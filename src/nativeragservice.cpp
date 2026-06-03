@@ -4,6 +4,11 @@
 #include <QRandomGenerator>
 #include <QDebug>
 #include <cmath>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QStandardPaths>
+#include <QDir>
 
 NativeRAGService::NativeRAGService(QObject *parent)
     : QObject(parent)
@@ -12,6 +17,12 @@ NativeRAGService::NativeRAGService(QObject *parent)
     m_enabled = settings.value("Config_NativeRAG_Enabled", false).toBool();
     m_topK = settings.value("Config_NativeRAG_TopK", 5).toInt();
     m_threshold = settings.value("Config_NativeRAG_Threshold", 0.3).toDouble();
+    load();
+}
+
+NativeRAGService::~NativeRAGService()
+{
+    save();
 }
 
 bool NativeRAGService::isEnabled() const
@@ -67,6 +78,7 @@ void NativeRAGService::addDocument(const QString &content, const QString &catego
     doc.category = category;
     doc.metadata = metadata;
     m_documents[id] = doc;
+    save();
     emit documentAdded(id);
 }
 
@@ -136,11 +148,13 @@ void NativeRAGService::search(const QString &query)
 void NativeRAGService::removeDocument(const QString &id)
 {
     m_documents.remove(id);
+    save();
 }
 
 void NativeRAGService::clearAll()
 {
     m_documents.clear();
+    save();
 }
 
 int NativeRAGService::documentCount() const
@@ -212,4 +226,80 @@ qreal NativeRAGService::computeBM25Score(const QString &query, const Document &d
         score += idf * (numerator / denominator);
     }
     return score;
+}
+
+QString NativeRAGService::getStoragePath() const
+{
+    QString basePath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    QDir().mkpath(basePath);
+    return basePath + "/native_rag_store.json";
+}
+
+void NativeRAGService::save()
+{
+    QJsonArray docsArray;
+    for (auto it = m_documents.constBegin(); it != m_documents.constEnd(); ++it) {
+        const Document &doc = it.value();
+        QJsonObject obj;
+        obj["id"] = doc.id;
+        obj["content"] = doc.content;
+        obj["category"] = doc.category;
+        obj["metadata"] = doc.metadata;
+        docsArray.append(obj);
+    }
+
+    QJsonObject root;
+    root["documents"] = docsArray;
+    root["version"] = 1;
+
+    QString path = getStoragePath();
+    QFile file(path);
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+        file.close();
+        qDebug() << "[NativeRAGService] Saved" << m_documents.size() << "documents";
+    } else {
+        qWarning() << "[NativeRAGService] Failed to save:" << path;
+    }
+}
+
+void NativeRAGService::load()
+{
+    QString path = getStoragePath();
+    QFile file(path);
+    if (!file.exists()) {
+        qDebug() << "[NativeRAGService] No stored data found";
+        return;
+    }
+
+    if (!file.open(QIODevice::ReadOnly)) {
+        qWarning() << "[NativeRAGService] Failed to open:" << path;
+        return;
+    }
+
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    file.close();
+
+    if (!doc.isObject()) {
+        qWarning() << "[NativeRAGService] Invalid data format";
+        return;
+    }
+
+    QJsonObject root = doc.object();
+    QJsonArray docsArray = root["documents"].toArray();
+
+    m_documents.clear();
+    for (const QJsonValue &val : docsArray) {
+        QJsonObject obj = val.toObject();
+        Document d;
+        d.id = obj["id"].toString();
+        d.content = obj["content"].toString();
+        d.category = obj["category"].toString();
+        d.metadata = obj["metadata"].toObject();
+
+        if (!d.id.isEmpty()) {
+            m_documents[d.id] = d;
+        }
+    }
+    qDebug() << "[NativeRAGService] Loaded" << m_documents.size() << "documents";
 }

@@ -52,6 +52,7 @@ Item {
 
     // Auto mode timer
     property real autoTimer: 0
+    property string currentSpokenChar: ""
 
     readonly property bool isConversationPausedByMenuState: menuPanelOpen
 
@@ -271,6 +272,7 @@ Item {
 
             if (root.typewriterIndex < root.typewriterText.length) {
                 var c = root.typewriterText.charAt(root.typewriterIndex);
+                root.currentSpokenChar = c;
                 root.typewriterIndex++;
                 dialogueText.rawText = root.typewriterText.substring(root.typewriterStartIndex, root.typewriterIndex);
 
@@ -344,6 +346,7 @@ Item {
 
             if (displayIndex < root.streamBuffer.length) {
                 var c = root.streamBuffer.charAt(displayIndex);
+                root.currentSpokenChar = c;
 
                 if (c === "[") {
                     var closeIdx = root.streamBuffer.indexOf("]", displayIndex);
@@ -875,6 +878,7 @@ Item {
         modelPath: "AmadeusKurisu5.0/reama5.0"
         emotion: root.currentEmotionTag
         lipSyncValue: root.isActivelySpeaking ? 1.0 : 0.0
+        spokenChar: root.isActivelySpeaking ? root.currentSpokenChar : ""
         lightweightMode: AppSettings.getInt("Config_LightweightMode", 0) === 1
     }
 

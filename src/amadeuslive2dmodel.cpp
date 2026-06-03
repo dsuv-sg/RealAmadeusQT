@@ -14,6 +14,15 @@
 #include <cstring>
 #include <cmath>
 
+#include <QMutex>
+#include <QMutexLocker>
+#include <QMap>
+#include <QSet>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QtConcurrent>
+
 #include <GL/glew.h>
 
 #include <CubismFramework.hpp>
@@ -67,6 +76,21 @@ public:
         Deallocate(preamble[-1]);
     }
 };
+
+struct ModelDataCache {
+    QString modelDirectory;
+    QByteArray model3Bytes;
+    QByteArray mocBytes;
+    QByteArray physicsBytes;
+    QByteArray poseBytes;
+    QMap<QString, QByteArray> expressionBytes;
+    QVector<QImage> textures;
+    bool loaded = false;
+};
+
+static QMutex s_cacheMutex;
+static QMap<QString, ModelDataCache> s_modelCache;
+static QSet<QString> s_loadingDirs;
 
 static SimpleAllocator s_allocator;
 static CubismFramework::Option s_cubismOption;
@@ -227,31 +251,26 @@ public:
             return false;
         }
 
-        QDir dir(modelDirectory);
-        if (!dir.exists()) {
-            static int warnCount = 0;
-            if (++warnCount <= 5)
-                qInfo() << "[Live2D] EnsureLoaded: directory not found:" << modelDirectory;
+        ModelDataCache cachedData;
+        bool hasCache = false;
+        {
+            QMutexLocker locker(&s_cacheMutex);
+            if (s_modelCache.contains(modelDirectory) && s_modelCache[modelDirectory].loaded) {
+                cachedData = s_modelCache[modelDirectory];
+                hasCache = true;
+            }
+        }
+
+        if (!hasCache) {
+            AmadeusLive2DModel::Preload(modelDirectory);
             return false;
         }
 
-        QString model3Path;
-        const QStringList model3Files = dir.entryList(QStringList() << "*.model3.json", QDir::Files);
-        if (!model3Files.isEmpty()) {
-            model3Path = dir.filePath(model3Files.first());
-        }
-        if (model3Path.isEmpty()) {
-            static int warnCount = 0;
-            if (++warnCount <= 5)
-                qInfo() << "[Live2D] EnsureLoaded: no .model3.json in" << modelDirectory;
-            return false;
-        }
-
-        const QByteArray model3Bytes = ReadAllBytes(model3Path);
+        const QByteArray model3Bytes = cachedData.model3Bytes;
         if (model3Bytes.isEmpty()) {
             static int warnCount = 0;
             if (++warnCount <= 5)
-                qInfo() << "[Live2D] EnsureLoaded: empty model3 file:" << model3Path;
+                qInfo() << "[Live2D] EnsureLoaded: empty cached model3 file";
             return false;
         }
 
@@ -261,8 +280,7 @@ public:
             return false;
         }
 
-        const QString mocPath = dir.filePath(QString::fromUtf8(_setting->GetModelFileName()));
-        const QByteArray mocBytes = ReadAllBytes(mocPath);
+        const QByteArray mocBytes = cachedData.mocBytes;
         if (mocBytes.isEmpty()) {
             return false;
         }
@@ -276,7 +294,6 @@ public:
             return false;
         }
 
-        // Use model3 Layout when available; otherwise keep Cubism's default model matrix.
         if (_setting != nullptr && _modelMatrix != nullptr) {
             csmMap<csmString, csmFloat32> layout;
             if (_setting->GetLayoutMap(layout) && layout.GetSize() > 0) {
@@ -296,16 +313,14 @@ public:
         }
 
         if (_setting->GetPhysicsFileName() != nullptr) {
-            const QString physicsPath = dir.filePath(QString::fromUtf8(_setting->GetPhysicsFileName()));
-            const QByteArray physicsBytes = ReadAllBytes(physicsPath);
+            const QByteArray physicsBytes = cachedData.physicsBytes;
             if (!physicsBytes.isEmpty()) {
                 LoadPhysics(reinterpret_cast<const csmByte*>(physicsBytes.constData()), static_cast<csmSizeInt>(physicsBytes.size()));
             }
         }
 
         if (_setting->GetPoseFileName() != nullptr) {
-            const QString posePath = dir.filePath(QString::fromUtf8(_setting->GetPoseFileName()));
-            const QByteArray poseBytes = ReadAllBytes(posePath);
+            const QByteArray poseBytes = cachedData.poseBytes;
             if (!poseBytes.isEmpty()) {
                 LoadPose(reinterpret_cast<const csmByte*>(poseBytes.constData()), static_cast<csmSizeInt>(poseBytes.size()));
             }
@@ -322,13 +337,12 @@ public:
         _expressions.Clear();
 
         for (csmInt32 i = 0; i < _setting->GetExpressionCount(); ++i) {
-            const QString expPath = dir.filePath(QString::fromUtf8(_setting->GetExpressionFileName(i)));
-            const QByteArray expBytes = ReadAllBytes(expPath);
+            const csmChar* expName = _setting->GetExpressionName(i);
+            const QByteArray expBytes = cachedData.expressionBytes.value(QString::fromUtf8(expName));
             if (expBytes.isEmpty()) {
                 continue;
             }
 
-            const csmChar* expName = _setting->GetExpressionName(i);
             ACubismMotion* motion = LoadExpression(reinterpret_cast<const csmByte*>(expBytes.constData()), static_cast<csmSizeInt>(expBytes.size()), expName);
             if (motion != nullptr) {
                 _expressions[csmString(expName)] = motion;
@@ -356,13 +370,20 @@ public:
             maxTextureSize = 4096;
         }
 
+        QDir dir(modelDirectory);
         for (csmInt32 i = 0; i < textureCount; ++i) {
-            const QString texPath = dir.filePath(QString::fromUtf8(_setting->GetTextureFileName(i)));
-            QImage img(texPath);
-            if (img.isNull()) {
-                continue;
+            QImage img;
+            if (i < cachedData.textures.size()) {
+                img = cachedData.textures[i];
             }
-            img = img.convertToFormat(QImage::Format_RGBA8888);
+            if (img.isNull()) {
+                const QString texPath = dir.filePath(QString::fromUtf8(_setting->GetTextureFileName(i)));
+                img = QImage(texPath);
+                if (img.isNull()) {
+                    continue;
+                }
+                img = img.convertToFormat(QImage::Format_RGBA8888);
+            }
 
             if (img.width() > maxTextureSize || img.height() > maxTextureSize) {
                 img = img.scaled(maxTextureSize, maxTextureSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
@@ -481,6 +502,41 @@ public:
         _lightweightMode = enabled;
     }
 
+    void SetSpokenChar(const QString& spokenChar) {
+        _spokenChar = spokenChar;
+    }
+
+    static float GetVowelMouthOpening(const QString &chr) {
+        if (chr.isEmpty()) return 0.0f;
+        const QChar c = chr.at(0);
+
+        if (c == 'a' || c == 'A') return 0.9f;
+        if (c == 'o' || c == 'O') return 0.7f;
+        if (c == 'e' || c == 'E') return 0.6f;
+        if (c == 'u' || c == 'U') return 0.4f;
+        if (c == 'i' || c == 'I') return 0.2f;
+
+        static const QString aVowels = QString::fromUtf8("あかさたなはまやらわがざだばぱぁゃァカサタナハマヤラワガザダバパァャ");
+        if (aVowels.contains(c)) return 0.9f;
+
+        static const QString oVowels = QString::fromUtf8("おこそとのほもよろをごぞどぼぽぉょォコソトノホモヨロヲゴゾドボポォョ");
+        if (oVowels.contains(c)) return 0.7f;
+
+        static const QString eVowels = QString::fromUtf8("えけせてねへめれげぜでべぺぇェケセテネヘメレゲゼデベペェ");
+        if (eVowels.contains(c)) return 0.6f;
+
+        static const QString uVowels = QString::fromUtf8("うくすつぬふむゆるぐずづぶぷぅゅゥクスツヌフムユルグズヅブプゥュ");
+        if (uVowels.contains(c)) return 0.4f;
+
+        static const QString iVowels = QString::fromUtf8("いきしちにひみりぎじぢびぴぃィキシチニヒミリギジヂビピィ");
+        if (iVowels.contains(c)) return 0.2f;
+
+        static const QString closedChars = QString::fromUtf8("んン。、？！.,?! 　\n\r\t-_");
+        if (closedChars.contains(c)) return 0.0f;
+
+        return 0.5f;
+    }
+
     void Update(float deltaSeconds) {
         if (!_initialized || _model == nullptr) {
             return;
@@ -595,13 +651,18 @@ public:
 
         const bool isActivelyTyping = _lipSyncValue > 0.01f;
         if (isActivelyTyping) {
-            // Unity parity: match exact frequencies and weights from Unity version
-            const float syllable = std::fabs(std::sin(_userTimeSeconds * 12.0f));
-            const float subBeat = std::fabs(std::sin(_userTimeSeconds * 7.3f));
-            const float flutter = Noise01(_userTimeSeconds * 8.0f, 5.0f);
-            const float rawMouth = syllable * 0.5f + subBeat * 0.3f + flutter * 0.2f;
-            const float targetMouth = qBound(0.0f, rawMouth * qBound(0.0f, _lipSyncValue, 1.0f), 1.0f);
-            _mouthOpen = Lerp(_mouthOpen, targetMouth, qBound(0.0f, deltaSeconds * 14.0f, 1.0f));
+            float targetMouth = 0.5f;
+            if (!_spokenChar.isEmpty()) {
+                targetMouth = GetVowelMouthOpening(_spokenChar);
+            } else {
+                // Fallback to Unity-parity time-based noise/wave
+                const float syllable = std::fabs(std::sin(_userTimeSeconds * 12.0f));
+                const float subBeat = std::fabs(std::sin(_userTimeSeconds * 7.3f));
+                const float flutter = Noise01(_userTimeSeconds * 8.0f, 5.0f);
+                targetMouth = syllable * 0.5f + subBeat * 0.3f + flutter * 0.2f;
+            }
+            const float finalMouth = qBound(0.0f, targetMouth * qBound(0.0f, _lipSyncValue, 1.0f), 1.0f);
+            _mouthOpen = Lerp(_mouthOpen, finalMouth, qBound(0.0f, deltaSeconds * 14.0f, 1.0f));
         } else {
             _mouthOpen = Lerp(_mouthOpen, 0.0f, qBound(0.0f, deltaSeconds * 10.0f, 1.0f));
         }
@@ -1008,6 +1069,7 @@ private:
     csmMap<csmString, ACubismMotion*> _expressions;
     csmVector<CubismIdHandle> _lipSyncIds;
     QVector<GLuint> _textureIds;
+    QString _spokenChar;
 
     // ── Cached CubismId pointers (avoid per-frame string lookup) ──
     const CubismId* _idBrowLY = nullptr;
@@ -1144,4 +1206,117 @@ void AmadeusLive2DModel::SetLightweightMode(bool enabled) {
     if (m_inner) {
         m_inner->SetLightweightMode(enabled);
     }
+}
+
+void AmadeusLive2DModel::SetSpokenChar(const QString& spokenChar) {
+    if (m_inner) {
+        m_inner->SetSpokenChar(spokenChar);
+    }
+}
+
+void AmadeusLive2DModel::Preload(const QString& modelDirectory) {
+    if (modelDirectory.isEmpty()) return;
+
+    {
+        QMutexLocker locker(&s_cacheMutex);
+        if (s_modelCache.contains(modelDirectory) || s_loadingDirs.contains(modelDirectory)) {
+            return;
+        }
+        s_loadingDirs.insert(modelDirectory);
+    }
+
+    qDebug() << "[Live2D Cache] Starting background preload for:" << modelDirectory;
+
+    QtConcurrent::run([modelDirectory]() {
+        ModelDataCache cache;
+        cache.modelDirectory = modelDirectory;
+
+        QDir dir(modelDirectory);
+        if (!dir.exists()) {
+            QMutexLocker locker(&s_cacheMutex);
+            s_loadingDirs.remove(modelDirectory);
+            qWarning() << "[Live2D Cache] Preload failed: directory not found:" << modelDirectory;
+            return;
+        }
+
+        QString model3Path;
+        const QStringList model3Files = dir.entryList(QStringList() << "*.model3.json", QDir::Files);
+        if (model3Files.isEmpty()) {
+            QMutexLocker locker(&s_cacheMutex);
+            s_loadingDirs.remove(modelDirectory);
+            qWarning() << "[Live2D Cache] Preload failed: no .model3.json in" << modelDirectory;
+            return;
+        }
+        model3Path = dir.filePath(model3Files.first());
+
+        cache.model3Bytes = ReadAllBytes(model3Path);
+        if (cache.model3Bytes.isEmpty()) {
+            QMutexLocker locker(&s_cacheMutex);
+            s_loadingDirs.remove(modelDirectory);
+            qWarning() << "[Live2D Cache] Preload failed: empty model3.json in" << modelDirectory;
+            return;
+        }
+
+        QJsonParseError parseError;
+        QJsonDocument doc = QJsonDocument::fromJson(cache.model3Bytes, &parseError);
+        if (doc.isNull() || !doc.isObject()) {
+            QMutexLocker locker(&s_cacheMutex);
+            s_loadingDirs.remove(modelDirectory);
+            qWarning() << "[Live2D Cache] Preload failed: JSON parse error:" << parseError.errorString();
+            return;
+        }
+        QJsonObject root = doc.object();
+
+        // 1. Moc file
+        QString mocFile = root["FileReferences"].toObject()["Moc"].toString();
+        if (!mocFile.isEmpty()) {
+            cache.mocBytes = ReadAllBytes(dir.filePath(mocFile));
+        }
+
+        // 2. Physics file
+        QString physicsFile = root["FileReferences"].toObject()["Physics"].toString();
+        if (!physicsFile.isEmpty()) {
+            cache.physicsBytes = ReadAllBytes(dir.filePath(physicsFile));
+        }
+
+        // 3. Pose file
+        QString poseFile = root["FileReferences"].toObject()["Pose"].toString();
+        if (!poseFile.isEmpty()) {
+            cache.poseBytes = ReadAllBytes(dir.filePath(poseFile));
+        }
+
+        // 4. Expressions
+        QJsonArray expressions = root["FileReferences"].toObject()["Expressions"].toArray();
+        for (const QJsonValue &val : expressions) {
+            QString expFile = val.toObject()["File"].toString();
+            QString name = val.toObject()["Name"].toString();
+            if (!expFile.isEmpty() && !name.isEmpty()) {
+                cache.expressionBytes[name] = ReadAllBytes(dir.filePath(expFile));
+            }
+        }
+
+        // 5. Textures (load QImages)
+        QJsonArray textures = root["FileReferences"].toObject()["Textures"].toArray();
+        for (const QJsonValue &val : textures) {
+            QString texFile = val.toString();
+            if (!texFile.isEmpty()) {
+                QImage img(dir.filePath(texFile));
+                if (!img.isNull()) {
+                    img = img.convertToFormat(QImage::Format_RGBA8888);
+                    cache.textures.append(img);
+                } else {
+                    cache.textures.append(QImage());
+                }
+            }
+        }
+
+        cache.loaded = true;
+
+        {
+            QMutexLocker locker(&s_cacheMutex);
+            s_modelCache[modelDirectory] = cache;
+            s_loadingDirs.remove(modelDirectory);
+        }
+        qDebug() << "[Live2D Cache] Preloaded model in background:" << modelDirectory;
+    });
 }

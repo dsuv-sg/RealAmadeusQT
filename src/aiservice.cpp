@@ -458,13 +458,17 @@ void AIService::sendChat(const QVariantList &messages)
         return;
     }
 
+    QString customUrl = m_settings.value(QString("Config_CustomEndpoint_%1").arg(provider), "").toString().trimmed();
+    if (customUrl.isEmpty()) {
+        customUrl = m_settings.value("Config_CustomEndpoint", "").toString().trimmed();
+    }
+
     QNetworkRequest req;
     QByteArray body;
 
-    switch (provider) {
     case PROVIDER_OPENAI: {
         if (model.isEmpty()) model = "gpt-4o";
-        req.setUrl(QUrl("https://api.openai.com/v1/chat/completions"));
+        req.setUrl(QUrl(customUrl.isEmpty() ? "https://api.openai.com/v1/chat/completions" : customUrl));
         req.setRawHeader("Authorization", ("Bearer " + apiKey).toUtf8());
         req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
         body = buildOpenAIBody(messages, model);
@@ -472,9 +476,10 @@ void AIService::sendChat(const QVariantList &messages)
     }
     case PROVIDER_GEMINI: {
         if (model.isEmpty() || model.startsWith("gpt")) model = "gemini-2.0-flash";
-        QString url = "https://generativelanguage.googleapis.com/v1beta/models/"
-                      + model + ":generateContent?key=" + apiKey;
-        req.setUrl(QUrl(url));
+        QString baseUrl = customUrl.isEmpty()
+            ? "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent"
+            : customUrl;
+        req.setUrl(QUrl(baseUrl + "?key=" + apiKey));
         req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
         body = buildGeminiBody(messages);
         break;
@@ -482,7 +487,7 @@ void AIService::sendChat(const QVariantList &messages)
     case PROVIDER_CLAUDE: {
         if (model.isEmpty() || model.startsWith("gpt") || model.startsWith("gemini"))
             model = "claude-3-7-sonnet-20250219";
-        req.setUrl(QUrl("https://api.anthropic.com/v1/messages"));
+        req.setUrl(QUrl(customUrl.isEmpty() ? "https://api.anthropic.com/v1/messages" : customUrl));
         req.setRawHeader("x-api-key", apiKey.toUtf8());
         req.setRawHeader("anthropic-version", "2023-06-01");
         req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
@@ -493,7 +498,7 @@ void AIService::sendChat(const QVariantList &messages)
         if (model.isEmpty() || !isValidGroqModel(model, true)) {
             model = "qwen3-32b";
         }
-        req.setUrl(QUrl("https://api.groq.com/openai/v1/chat/completions"));
+        req.setUrl(QUrl(customUrl.isEmpty() ? "https://api.groq.com/openai/v1/chat/completions" : customUrl));
         req.setRawHeader("Authorization", ("Bearer " + apiKey).toUtf8());
         req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
         if (webSearch) {
@@ -507,7 +512,8 @@ void AIService::sendChat(const QVariantList &messages)
         if (model.isEmpty()) model = "llama3";
         QString ollamaHost = m_settings.value("Config_OllamaHost", "http://localhost:11434").toString().trimmed();
         if (ollamaHost.isEmpty()) ollamaHost = "http://localhost:11434";
-        req.setUrl(QUrl(ollamaHost + "/v1/chat/completions"));
+        QString host = customUrl.isEmpty() ? ollamaHost + "/v1/chat/completions" : customUrl;
+        req.setUrl(QUrl(host));
         req.setRawHeader("Authorization", ("Bearer " + apiKey).toUtf8());
         req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
         body = buildOpenAIBody(messages, model);
@@ -515,7 +521,7 @@ void AIService::sendChat(const QVariantList &messages)
     }
     case PROVIDER_OPENROUTER: {
         if (model.isEmpty()) model = "openai/gpt-4o";
-        req.setUrl(QUrl("https://openrouter.ai/api/v1/chat/completions"));
+        req.setUrl(QUrl(customUrl.isEmpty() ? "https://openrouter.ai/api/v1/chat/completions" : customUrl));
         req.setRawHeader("Authorization", ("Bearer " + apiKey).toUtf8());
         req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
         body = buildOpenAIBody(messages, model);
@@ -659,6 +665,11 @@ void AIService::sendChatStreaming(const QVariantList &messages)
     QString model  = getModel(provider);
     bool webSearch = isWebSearchEnabled();
 
+    QString customUrl = m_settings.value(QString("Config_CustomEndpoint_%1").arg(provider), "").toString().trimmed();
+    if (customUrl.isEmpty()) {
+        customUrl = m_settings.value("Config_CustomEndpoint", "").toString().trimmed();
+    }
+
     // Non-streaming providers: fallback to sendChat
     if (provider != PROVIDER_GROQ && provider != PROVIDER_VERTEX && provider != PROVIDER_OLLAMA && provider != PROVIDER_OPENROUTER) {
         sendChat(messages);
@@ -677,7 +688,7 @@ void AIService::sendChatStreaming(const QVariantList &messages)
         if (model.isEmpty() || !isValidGroqModel(model, false)) {
             model = "qwen3-32b";
         }
-        req.setUrl(QUrl("https://api.groq.com/openai/v1/chat/completions"));
+        req.setUrl(QUrl(customUrl.isEmpty() ? "https://api.groq.com/openai/v1/chat/completions" : customUrl));
         req.setRawHeader("Authorization", ("Bearer " + apiKey).toUtf8());
         req.setRawHeader("Accept", "text/event-stream");
         req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
@@ -690,14 +701,15 @@ void AIService::sendChatStreaming(const QVariantList &messages)
         if (model.isEmpty()) model = "llama3";
         QString ollamaHost = m_settings.value("Config_OllamaHost", "http://localhost:11434").toString().trimmed();
         if (ollamaHost.isEmpty()) ollamaHost = "http://localhost:11434";
-        req.setUrl(QUrl(ollamaHost + "/v1/chat/completions"));
+        QString host = customUrl.isEmpty() ? ollamaHost + "/v1/chat/completions" : customUrl;
+        req.setUrl(QUrl(host));
         req.setRawHeader("Authorization", ("Bearer " + apiKey).toUtf8());
         req.setRawHeader("Accept", "text/event-stream");
         req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
         body = buildOpenAIBody(messages, model, true, false);
     } else if (provider == PROVIDER_OPENROUTER) {
         if (model.isEmpty()) model = "openai/gpt-4o";
-        req.setUrl(QUrl("https://openrouter.ai/api/v1/chat/completions"));
+        req.setUrl(QUrl(customUrl.isEmpty() ? "https://openrouter.ai/api/v1/chat/completions" : customUrl));
         req.setRawHeader("Authorization", ("Bearer " + apiKey).toUtf8());
         req.setRawHeader("Accept", "text/event-stream");
         req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");

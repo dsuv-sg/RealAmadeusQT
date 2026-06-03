@@ -25,10 +25,14 @@ public:
     // Get list of available backends for this OS (in preferred order)
     static QStringList GetAvailableBackends();
     
+    // Preload model files in background thread
+    static void Preload(const QString& modelDirectory);
+    
     void SetEmotionTag(const QString& emotionTag);
     void SetLipSyncValue(float value);
     void SetEyeTracking(float eyeX, float eyeY);
     void SetLightweightMode(bool enabled);
+    void SetSpokenChar(const QString& spokenChar);
     void Update(float deltaSeconds);
     void Draw(int width, int height);
 

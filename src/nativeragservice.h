@@ -29,6 +29,7 @@ public:
     };
 
     explicit NativeRAGService(QObject *parent = nullptr);
+    ~NativeRAGService();
 
     bool isEnabled() const;
     void setEnabled(bool enabled);
@@ -61,6 +62,9 @@ private:
                            qreal avgDocLen, const QMap<QString, int> &docFreq) const;
     QMap<QString, int> termFrequency(const QString &text) const;
     QStringList tokenize(const QString &text) const;
+    QString getStoragePath() const;
+    void save();
+    void load();
 
     QMap<QString, Document> m_documents;
 

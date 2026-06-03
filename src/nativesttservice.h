@@ -48,7 +48,6 @@ private:
     void initializeAudioInput();
     QByteArray createWavHeader(int dataSize, int sampleRate, int channels, int bitsPerSample);
     qreal calculateAudioLevel(const QByteArray &data);
-    bool transcribeWithWhisper(const QByteArray &wavData);
     QString resolveWhisperModelPath() const;
 
     std::unique_ptr<QAudioSource> m_audioSource;

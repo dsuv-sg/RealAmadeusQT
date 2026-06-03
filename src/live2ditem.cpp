@@ -62,6 +62,7 @@ public:
         m_lipSyncValue = live2dItem->lipSyncValue();
         m_model->SetEyeTracking(live2dItem->eyeX(), live2dItem->eyeY());
         m_model->SetLightweightMode(live2dItem->lightweightMode());
+        m_model->SetSpokenChar(live2dItem->spokenChar());
         
         m_lightweightMode = live2dItem->lightweightMode();
         m_eyeX = live2dItem->eyeX();
@@ -151,6 +152,10 @@ void Live2DItem::setModelPath(const QString& value) {
     }
     m_modelPath = value;
     emit modelPathChanged();
+    const QString modelDir = ResolveModelDirectory(m_modelPath);
+    if (!modelDir.isEmpty()) {
+        AmadeusLive2DModel::Preload(modelDir);
+    }
     update();
 }
 
@@ -219,6 +224,19 @@ void Live2DItem::setLightweightMode(bool value) {
     update();
 }
 
+QString Live2DItem::spokenChar() const {
+    return m_spokenChar;
+}
+
+void Live2DItem::setSpokenChar(const QString& value) {
+    if (m_spokenChar == value) {
+        return;
+    }
+    m_spokenChar = value;
+    emit spokenCharChanged();
+    update();
+}
+
 void Live2DItem::itemChange(ItemChange change, const ItemChangeData& value) {
     QQuickFramebufferObject::itemChange(change, value);
     
@@ -235,8 +253,9 @@ void Live2DItem::TryLazyInitialize() {
     
     m_lazyInitialized = true;
     qInfo() << "[Live2DItem] Lazy initializing model:" << m_modelPath;
-    
-    // Model will be loaded asynchronously on next frame render
-    // This prevents blocking startup while showing boot/login UI
+    const QString modelDir = ResolveModelDirectory(m_modelPath);
+    if (!modelDir.isEmpty()) {
+        AmadeusLive2DModel::Preload(modelDir);
+    }
     update();
 }
