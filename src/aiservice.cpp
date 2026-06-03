@@ -660,15 +660,30 @@ void AIService::sendChat(const QVariantList &messages)
 // ─────────────────────────────────────────────────────
 void AIService::sendChatStreaming(const QVariantList &messages)
 {
-    QMutexLocker locker(&m_settingsMutex);
-    int provider = m_settings.value("Config_ApiProvider", 0).toInt();
-    QString apiKey = getApiKey(provider);
-    QString model  = getModel(provider);
-    bool webSearch = isWebSearchEnabled();
+    int provider;
+    QString apiKey;
+    QString model;
+    bool webSearch;
+    QString customUrl;
+    QString ollamaHost;
+    QString vertexProject;
+    QString vertexLocation;
 
-    QString customUrl = m_settings.value(QString("Config_CustomEndpoint_%1").arg(provider), "").toString().trimmed();
-    if (customUrl.isEmpty()) {
-        customUrl = m_settings.value("Config_CustomEndpoint", "").toString().trimmed();
+    {
+        QMutexLocker locker(&m_settingsMutex);
+        provider = m_settings.value("Config_ApiProvider", 0).toInt();
+        apiKey = getApiKey(provider);
+        model  = getModel(provider);
+        webSearch = isWebSearchEnabled();
+
+        customUrl = m_settings.value(QString("Config_CustomEndpoint_%1").arg(provider), "").toString().trimmed();
+        if (customUrl.isEmpty()) {
+            customUrl = m_settings.value("Config_CustomEndpoint", "").toString().trimmed();
+        }
+        ollamaHost = m_settings.value("Config_OllamaHost", "http://localhost:11434").toString().trimmed();
+        if (ollamaHost.isEmpty()) ollamaHost = "http://localhost:11434";
+        vertexProject = m_settings.value("Config_VertexProject", "").toString();
+        vertexLocation = m_settings.value("Config_VertexLocation", "us-central1").toString();
     }
 
     // Non-streaming providers: fallback to sendChat
@@ -700,8 +715,6 @@ void AIService::sendChatStreaming(const QVariantList &messages)
         }
     } else if (provider == PROVIDER_OLLAMA) {
         if (model.isEmpty()) model = "llama3";
-        QString ollamaHost = m_settings.value("Config_OllamaHost", "http://localhost:11434").toString().trimmed();
-        if (ollamaHost.isEmpty()) ollamaHost = "http://localhost:11434";
         QString host = customUrl.isEmpty() ? ollamaHost + "/v1/chat/completions" : customUrl;
         req.setUrl(QUrl(host));
         req.setRawHeader("Authorization", ("Bearer " + apiKey).toUtf8());
@@ -717,13 +730,11 @@ void AIService::sendChatStreaming(const QVariantList &messages)
         body = buildOpenAIBody(messages, model, true, false);
     } else {
         // Vertex streaming - acquire token asynchronously to avoid UI freezing
-        QString projectId = m_settings.value("Config_VertexProject", "").toString();
-        if (projectId.trimmed().isEmpty()) {
+        if (vertexProject.trimmed().isEmpty()) {
             emit errorOccurred("Vertex AI: Project ID が未設定です。Config_VertexProject を設定してください。");
             return;
         }
         
-        QString location = m_settings.value("Config_VertexLocation", "us-central1").toString();
         const QString lowerModel = model.toLower();
         QString vertexModel = model;
         if (vertexModel.isEmpty() || lowerModel.startsWith("gpt")) {
@@ -738,7 +749,7 @@ void AIService::sendChatStreaming(const QVariantList &messages)
 
         // Setup async handler when token is ready
         auto watcher = new QFutureWatcher<QString>(this);
-        connect(watcher, &QFutureWatcher<QString>::finished, this, [this, watcher, projectId, vertexModel, location, vertexBody]() {
+        connect(watcher, &QFutureWatcher<QString>::finished, this, [this, watcher, vertexProject, vertexModel, vertexLocation, vertexBody]() {
             QString token = watcher->result();
             watcher->deleteLater();
 
@@ -752,13 +763,13 @@ void AIService::sendChatStreaming(const QVariantList &messages)
             }
 
             // Now execute the Vertex streaming API call with obtained token
-            const QStringList targetRegions = getVertexTargetRegions(location);
+            const QStringList targetRegions = getVertexTargetRegions(vertexLocation);
             auto regionIndex = std::make_shared<int>(0);
             auto errors = std::make_shared<QStringList>();
             auto attempt = std::make_shared<std::function<void()>>();
             std::weak_ptr<std::function<void()>> weakAttempt = attempt;
 
-            *attempt = [this, projectId, vertexModel, token, targetRegions, vertexBody, regionIndex, errors, weakAttempt]() {
+            *attempt = [this, vertexProject, vertexModel, token, targetRegions, vertexBody, regionIndex, errors, weakAttempt]() {
                 if (*regionIndex >= targetRegions.size()) {
                     emit errorOccurred(QString("Vertex AI Stream: All regions failed (%1). Errors: %2")
                                            .arg(targetRegions.join(", "), errors->join("; ")));
@@ -767,7 +778,7 @@ void AIService::sendChatStreaming(const QVariantList &messages)
 
                 const QString currentRegion = targetRegions.at(*regionIndex);
                 QNetworkRequest vertexReq;
-                vertexReq.setUrl(QUrl(buildVertexUrl(projectId, currentRegion, vertexModel, "streamGenerateContent")));
+                vertexReq.setUrl(QUrl(buildVertexUrl(vertexProject, currentRegion, vertexModel, "streamGenerateContent")));
                 vertexReq.setRawHeader("Authorization", ("Bearer " + token).toUtf8());
                 vertexReq.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
                 vertexReq.setTransferTimeout(120000);
