@@ -78,15 +78,8 @@ bool NativeSTTService::isWhisperAvailable() const
         return false;
     }
 
-    // Try to init whisper context as a test
-    struct whisper_context_params cparams = whisper_context_default_params();
-    struct whisper_context *ctx = whisper_init_from_file_with_params(modelPath.toUtf8().constData(), cparams);
-    if (ctx) {
-        whisper_free(ctx);
-        m_whisperAvailableCached = true;
-    } else {
-        m_whisperAvailableCached = false;
-    }
+    // File existence check is sufficient for availability, avoiding heavy synchronous model loading on UI thread.
+    m_whisperAvailableCached = true;
     m_whisperChecked = true;
     return m_whisperAvailableCached;
 }

@@ -19,6 +19,8 @@ public:
         QString content;
         QString category;
         QJsonObject metadata;
+        QStringList tokens;
+        QMap<QString, int> termFreqs;
     };
 
     struct SearchResult {
@@ -58,7 +60,7 @@ signals:
 
 private:
     QString generateId() const;
-    qreal computeBM25Score(const QString &query, const Document &doc,
+    qreal computeBM25Score(const QStringList &qTerms, const Document &doc,
                            qreal avgDocLen, const QMap<QString, int> &docFreq) const;
     QMap<QString, int> termFrequency(const QString &text) const;
     QStringList tokenize(const QString &text) const;

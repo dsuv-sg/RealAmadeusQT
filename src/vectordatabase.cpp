@@ -27,6 +27,17 @@ VectorDatabase::VectorDatabase(QObject *parent)
 VectorDatabase::~VectorDatabase()
 {
     save();
+    
+    // Abort and delete any pending embedding requests
+    for (auto it = m_pendingCallbacks.begin(); it != m_pendingCallbacks.end(); ++it) {
+        QNetworkReply *reply = it.key();
+        if (reply) {
+            reply->disconnect();
+            reply->abort();
+            reply->deleteLater();
+        }
+    }
+    m_pendingCallbacks.clear();
 }
 
 bool VectorDatabase::isEnabled() const

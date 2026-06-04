@@ -77,6 +77,8 @@ void NativeRAGService::addDocument(const QString &content, const QString &catego
     doc.content = content;
     doc.category = category;
     doc.metadata = metadata;
+    doc.tokens = tokenize(content);
+    doc.termFreqs = termFrequency(content);
     m_documents[id] = doc;
     save();
     emit documentAdded(id);
@@ -97,27 +99,27 @@ void NativeRAGService::search(const QString &query)
         return;
     }
 
-    // Compute average document length
+    // Compute average document length (using pre-cached token sizes)
     qreal totalLen = 0;
     for (const auto &doc : m_documents) {
-        totalLen += tokenize(doc.content).size();
+        totalLen += doc.tokens.size();
     }
     qreal avgDocLen = totalLen / m_documents.size();
 
-    // Compute document frequency for each term in query
+    // Compute document frequency for each term in query (using pre-cached term frequencies)
     QStringList qTerms = tokenize(query);
     QMap<QString, int> docFreq;
     for (const QString &term : qTerms) {
         int df = 0;
         for (const auto &doc : m_documents) {
-            if (tokenize(doc.content).contains(term)) df++;
+            if (doc.termFreqs.contains(term)) df++;
         }
         docFreq[term] = df;
     }
 
     QVector<SearchResult> results;
     for (const auto &doc : m_documents) {
-        qreal score = computeBM25Score(query, doc, avgDocLen, docFreq);
+        qreal score = computeBM25Score(qTerms, doc, avgDocLen, docFreq);
         if (score >= m_threshold) {
             SearchResult r;
             r.id = doc.id;
@@ -183,19 +185,34 @@ QStringList NativeRAGService::tokenize(const QString &text) const
 {
     QStringList tokens;
     QString lower = text.toLower();
-    // Simple CJK / word tokenization
-    QString current;
+    QString currentWord;
+    
     for (const QChar &c : lower) {
-        if (c.isLetterOrNumber() || c.unicode() >= 0x4E00) {
-            current.append(c);
+        ushort u = c.unicode();
+        bool isCjkChar = (u >= 0x3040 && u <= 0x30FF) || 
+                         (u >= 0x4E00 && u <= 0x9FFF) || 
+                         (u >= 0xF900 && u <= 0xFAFF) || 
+                         (u >= 0xAC00 && u <= 0xD7AF) || 
+                         (u >= 0x1100 && u <= 0x11FF);
+        
+        if (isCjkChar) {
+            if (!currentWord.isEmpty()) {
+                tokens.append(currentWord);
+                currentWord.clear();
+            }
+            tokens.append(QString(c));
+        } else if (c.isLetterOrNumber()) {
+            currentWord.append(c);
         } else {
-            if (!current.isEmpty()) {
-                tokens.append(current);
-                current.clear();
+            if (!currentWord.isEmpty()) {
+                tokens.append(currentWord);
+                currentWord.clear();
             }
         }
     }
-    if (!current.isEmpty()) tokens.append(current);
+    if (!currentWord.isEmpty()) {
+        tokens.append(currentWord);
+    }
     return tokens;
 }
 
@@ -206,18 +223,16 @@ QMap<QString, int> NativeRAGService::termFrequency(const QString &text) const
     return freq;
 }
 
-qreal NativeRAGService::computeBM25Score(const QString &query, const Document &doc,
+qreal NativeRAGService::computeBM25Score(const QStringList &qTerms, const Document &doc,
                                           qreal avgDocLen, const QMap<QString, int> &docFreq) const
 {
-    QStringList qTerms = tokenize(query);
-    QMap<QString, int> tf = termFrequency(doc.content);
-    int docLen = tokenize(doc.content).size();
+    int docLen = doc.tokens.size();
     if (docLen == 0) return 0.0;
 
     qreal score = 0.0;
     int N = m_documents.size();
     for (const QString &term : qTerms) {
-        int f = tf.value(term, 0);
+        int f = doc.termFreqs.value(term, 0);
         if (f == 0) continue;
         int df = docFreq.value(term, 1);
         qreal idf = std::log((N - df + 0.5) / (df + 0.5) + 1.0);
@@ -296,6 +311,8 @@ void NativeRAGService::load()
         d.content = obj["content"].toString();
         d.category = obj["category"].toString();
         d.metadata = obj["metadata"].toObject();
+        d.tokens = tokenize(d.content);
+        d.termFreqs = termFrequency(d.content);
 
         if (!d.id.isEmpty()) {
             m_documents[d.id] = d;
