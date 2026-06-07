@@ -227,9 +227,19 @@ ApplicationWindow {
         id: globalGazeTracker
         target: null
         acceptedDevices: PointerDevice.Mouse
+        
+        property int lastX: -1
+        property int lastY: -1
+        
         onPointChanged: {
-            if (systemPanel.chatPanel) {
-                systemPanel.chatPanel.resetIdleTimer();
+            var mx = Math.round(point.position.x);
+            var my = Math.round(point.position.y);
+            if (mx !== lastX || my !== lastY) {
+                lastX = mx;
+                lastY = my;
+                if (systemPanel.chatPanel) {
+                    systemPanel.chatPanel.resetIdleTimer();
+                }
             }
             if (AppSettings.getInt("Config_EyeTracking", 0) !== 1) return;
             if (!systemPanel.chatPanel) return;

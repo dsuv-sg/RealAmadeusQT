@@ -39,9 +39,17 @@ Item {
     function resetIdleTimer() {
         if (root.idleSeconds > 0) {
             root.idleSeconds = 0;
+            if (root.chatDebug) console.log("[Amadeus Idle] Timer reset due to activity");
         }
         if (root.currentEmotionTag === "SLEEPING") {
             root.currentEmotionTag = "NORMAL";
+            if (root.chatDebug) console.log("[Amadeus Idle] Waking up!");
+        }
+    }
+
+    onVisibleChanged: {
+        if (visible) {
+            resetIdleTimer();
         }
     }
 
@@ -866,8 +874,12 @@ Item {
         repeat: true
         onTriggered: {
             root.idleSeconds += 1;
+            if (root.idleSeconds % 10 === 0 && root.chatDebug) {
+                console.log("[Amadeus Idle] Inactivity seconds: " + root.idleSeconds + " / " + root.idleThreshold);
+            }
             if (root.idleSeconds >= root.idleThreshold && root.currentEmotionTag !== "SLEEPING") {
                 root.currentEmotionTag = "SLEEPING";
+                if (root.chatDebug) console.log("[Amadeus Idle] Falling asleep...");
             }
         }
     }
