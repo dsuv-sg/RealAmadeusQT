@@ -410,32 +410,9 @@ public:
         return true;
     }
 
-    void SetEmotionTag(const QString& emotionTag) {
-        if (emotionTag.isEmpty()) {
-            return;
-        }
-        const QString normalizedTag = emotionTag.trimmed().toUpper();
-        if (normalizedTag == _emotionTag) {
-            return;
-        }
-        _emotionTag = normalizedTag;
-
-        if (_expressions.GetSize() == 0 || _expressionManager == nullptr) {
-            _targetEmotion = GetEmotionTarget(_emotionTag);
-            if (_emotionTag != _currentEmotionTag) {
-                _activeBurst = GetMotionBurst(_emotionTag);
-                _burstTimer = 0.0f;
-                _burstProgress = 0.0f;
-                _idlePhase = 0.0f;
-                _currentEmotionTag = _emotionTag;
-            }
-            return;
-        }
-
-        const QString needle = _emotionTag.toLower();
-        ACubismMotion* selected = nullptr;
-
-        // Match Unity mapping: use the expression list order/name semantics first.
+    ACubismMotion* FindExpression(const QString& tag) const {
+        if (_expressions.GetSize() == 0) return nullptr;
+        const QString needle = tag.toLower();
         QStringList preferredKeys;
         if (needle == QStringLiteral("sad")) preferredKeys = {QStringLiteral("sad")};
         else if (needle == QStringLiteral("smile")) preferredKeys = {QStringLiteral("smile")};
@@ -450,6 +427,7 @@ public:
         else if (needle == QStringLiteral("panic")) preferredKeys = {QStringLiteral("surprised")};
         else preferredKeys = {needle};
 
+        ACubismMotion* selected = nullptr;
         for (const QString& key : preferredKeys) {
             for (csmMap<csmString, ACubismMotion*>::const_iterator it = _expressions.Begin(); it != _expressions.End(); ++it) {
                 const QString name = QString::fromUtf8(it->First.GetRawString()).toLower();
@@ -458,34 +436,73 @@ public:
                     break;
                 }
             }
-            if (selected != nullptr) {
-                break;
-            }
+            if (selected != nullptr) break;
         }
 
         if (selected == nullptr) {
-        for (csmMap<csmString, ACubismMotion*>::const_iterator it = _expressions.Begin(); it != _expressions.End(); ++it) {
-            const QString name = QString::fromUtf8(it->First.GetRawString()).toLower();
-            if (name.contains(needle)) {
-                selected = it->Second;
-                break;
+            for (csmMap<csmString, ACubismMotion*>::const_iterator it = _expressions.Begin(); it != _expressions.End(); ++it) {
+                const QString name = QString::fromUtf8(it->First.GetRawString()).toLower();
+                if (name.contains(needle)) {
+                    selected = it->Second;
+                    break;
+                }
             }
-        }
         }
 
         if (selected == nullptr) {
             selected = _expressions.Begin()->Second;
         }
+        return selected;
+    }
 
-        _expressionManager->StartMotionPriority(selected, false, 3);
+    void SetEmotionTag(const QString& emotionTag) {
+        if (emotionTag.isEmpty()) {
+            return;
+        }
+        const QString normalizedTag = emotionTag.trimmed().toUpper();
+        if (normalizedTag == _emotionTag) {
+            return;
+        }
+        
+        bool isWakingUp = (_emotionTag == QStringLiteral("SLEEPING") && normalizedTag != QStringLiteral("SLEEPING"));
+        _emotionTag = normalizedTag;
 
-        _targetEmotion = GetEmotionTarget(_emotionTag);
-        if (_emotionTag != _currentEmotionTag) {
-            _activeBurst = GetMotionBurst(_emotionTag);
+        if (isWakingUp) {
+            _wakeUpTimer = 1.2f; // startled wake-up duration (1.2 seconds)
+            
+            // Start the SURPRISED expression & target & burst
+            if (_expressionManager != nullptr && _expressions.GetSize() > 0) {
+                ACubismMotion* surprisedExp = FindExpression(QStringLiteral("surprised"));
+                if (surprisedExp) {
+                    _expressionManager->StartMotionPriority(surprisedExp, false, 3);
+                }
+            }
+            
+            _targetEmotion = GetEmotionTarget(QStringLiteral("SURPRISED"));
+            _activeBurst = GetMotionBurst(QStringLiteral("SURPRISED"));
             _burstTimer = 0.0f;
             _burstProgress = 0.0f;
             _idlePhase = 0.0f;
-            _currentEmotionTag = _emotionTag;
+            _currentEmotionTag = QStringLiteral("SURPRISED");
+        } else {
+            // Cancel any active wakeUpTimer
+            _wakeUpTimer = 0.0f;
+            
+            if (_expressionManager != nullptr && _expressions.GetSize() > 0) {
+                ACubismMotion* selected = FindExpression(_emotionTag);
+                if (selected) {
+                    _expressionManager->StartMotionPriority(selected, false, 3);
+                }
+            }
+
+            _targetEmotion = GetEmotionTarget(_emotionTag);
+            if (_emotionTag != _currentEmotionTag) {
+                _activeBurst = GetMotionBurst(_emotionTag);
+                _burstTimer = 0.0f;
+                _burstProgress = 0.0f;
+                _idlePhase = 0.0f;
+                _currentEmotionTag = _emotionTag;
+            }
         }
     }
 
@@ -565,6 +582,40 @@ public:
             _physics->Evaluate(_model, deltaSeconds);
         }
 
+        // Handle startled wake-up transition blend
+        if (_wakeUpTimer > 0.0f) {
+            _wakeUpTimer -= deltaSeconds;
+            if (_wakeUpTimer <= 0.0f) {
+                _wakeUpTimer = 0.0f;
+                if (_expressionManager != nullptr && _expressions.GetSize() > 0) {
+                    ACubismMotion* selected = FindExpression(_emotionTag);
+                    if (selected) {
+                        _expressionManager->StartMotionPriority(selected, false, 3);
+                    }
+                }
+                _targetEmotion = GetEmotionTarget(_emotionTag);
+                _currentEmotionTag = _emotionTag;
+            } else {
+                EmotionTarget targetBase = GetEmotionTarget(_emotionTag);
+                EmotionTarget targetSurprised = GetEmotionTarget(QStringLiteral("SURPRISED"));
+                float blend = qBound(0.0f, _wakeUpTimer / 1.2f, 1.0f);
+                
+                _targetEmotion.browY = Lerp(targetBase.browY, targetSurprised.browY, blend);
+                _targetEmotion.browForm = Lerp(targetBase.browForm, targetSurprised.browForm, blend);
+                _targetEmotion.browAngle = Lerp(targetBase.browAngle, targetSurprised.browAngle, blend);
+                _targetEmotion.eyeOpen = Lerp(targetBase.eyeOpen, targetSurprised.eyeOpen, blend);
+                _targetEmotion.eyeSmile = Lerp(targetBase.eyeSmile, targetSurprised.eyeSmile, blend);
+                _targetEmotion.mouthForm = Lerp(targetBase.mouthForm, targetSurprised.mouthForm, blend);
+                _targetEmotion.cheek = Lerp(targetBase.cheek, targetSurprised.cheek, blend);
+                _targetEmotion.headAngleX = Lerp(targetBase.headAngleX, targetSurprised.headAngleX, blend);
+                _targetEmotion.headAngleY = Lerp(targetBase.headAngleY, targetSurprised.headAngleY, blend);
+                _targetEmotion.headAngleZ = Lerp(targetBase.headAngleZ, targetSurprised.headAngleZ, blend);
+                _targetEmotion.bodyAngleX = Lerp(targetBase.bodyAngleX, targetSurprised.bodyAngleX, blend);
+                _targetEmotion.bodyAngleY = Lerp(targetBase.bodyAngleY, targetSurprised.bodyAngleY, blend);
+                _targetEmotion.bodyAngleZ = Lerp(targetBase.bodyAngleZ, targetSurprised.bodyAngleZ, blend);
+            }
+        }
+
         // Unity parity: smooth emotion blend.
         const float t = qBound(0.0f, deltaSeconds * _emotionLerpSpeed, 1.0f);
         _currentEmotion.browY = Lerp(_currentEmotion.browY, _targetEmotion.browY, t);
@@ -591,14 +642,33 @@ public:
             _burstTimer += deltaSeconds;
             _burstProgress = qBound(0.0f, _burstTimer / qMax(0.001f, _activeBurst.duration), 1.0f);
             const float t01 = _burstProgress;
-            const float spring = std::sin(t01 * 3.14159265f * 2.5f) * (1.0f - t01) * (1.0f - t01);
-            const float intensity = _activeBurst.intensity * spring;
-            burstBodyX = _activeBurst.bodyX * intensity;
-            burstBodyY = _activeBurst.bodyY * intensity;
-            burstBodyZ = _activeBurst.bodyZ * intensity;
-            burstHeadX = _activeBurst.headX * intensity;
-            burstHeadY = _activeBurst.headY * intensity;
-            burstHeadZ = _activeBurst.headZ * intensity;
+            
+            if (_emotionTag == QStringLiteral("SLEEPING")) {
+                // Custom "nod, nod" (コク、コク) head pitch curve
+                // We want two downward dips in headY (ParamAngleY)
+                // Nod 1: peak at t01 = 0.25 (value = -10.0f)
+                // Nod 2: peak at t01 = 0.75 (value = -15.0f)
+                float nodCurve = 0.0f;
+                if (t01 < 0.5f) {
+                    nodCurve = std::sin(t01 * 2.0f * 3.14159265f) * -10.0f;
+                    if (nodCurve > 0.0f) nodCurve = 0.0f;
+                } else {
+                    float localT = (t01 - 0.5f) * 2.0f;
+                    nodCurve = std::sin(localT * 3.14159265f) * -15.0f;
+                    if (nodCurve > 0.0f) nodCurve = 0.0f;
+                }
+                burstHeadY = nodCurve;
+                burstBodyY = t01 * -2.0f; // body drops down slightly
+            } else {
+                const float spring = std::sin(t01 * 3.14159265f * 2.5f) * (1.0f - t01) * (1.0f - t01);
+                const float intensity = _activeBurst.intensity * spring;
+                burstBodyX = _activeBurst.bodyX * intensity;
+                burstBodyY = _activeBurst.bodyY * intensity;
+                burstBodyZ = _activeBurst.bodyZ * intensity;
+                burstHeadX = _activeBurst.headX * intensity;
+                burstHeadY = _activeBurst.headY * intensity;
+                burstHeadZ = _activeBurst.headZ * intensity;
+            }
         }
 
         float idleBodyX = 0.0f;
@@ -917,7 +987,7 @@ private:
         } else if (t == QStringLiteral("SLEEPING")) {
             b.bodyX = -1.0f; b.bodyY = -2.0f; b.bodyZ = -1.0f;
             b.headX = -2.0f; b.headY = -3.0f; b.headZ = -2.0f;
-            b.duration = 1.2f; b.intensity = 0.3f;
+            b.duration = 2.0f; b.intensity = 0.3f;
         }
         return b;
     }
@@ -1062,6 +1132,7 @@ private:
     MotionBurst _activeBurst;
     float _burstTimer = 0.0f;
     float _burstProgress = 1.0f;
+    float _wakeUpTimer = 0.0f;
     QString _currentEmotionTag;
     BlinkState _blinkState = BlinkState::Open;
     float _blinkTimer = 0.0f;
