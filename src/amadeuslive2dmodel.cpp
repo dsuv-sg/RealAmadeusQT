@@ -667,19 +667,19 @@ public:
             
             if (_emotionTag == QStringLiteral("SLEEPING")) {
                 // Custom "nod, nod, nod" (コク、コク、コクっ) head pitch curve
-                // Nod 1 (light): 0.0s to 1.0s (t01 from 0.0 to 0.33) -> peak -6.0f
-                // Nod 2 (light): 1.0s to 2.0s (t01 from 0.33 to 0.66) -> peak -6.0f
-                // Nod 3 (deep): 2.0s to 3.0s (t01 from 0.66 to 1.0) -> peak -15.0f
+                // Nod 1 (light but distinct): 0.0s to 1.5s (t01 from 0.0 to 0.33) -> peak -14.0f
+                // Nod 2 (light but distinct): 1.5s to 3.0s (t01 from 0.33 to 0.66) -> peak -14.0f
+                // Nod 3 (deep): 3.0s to 4.5s (t01 from 0.66 to 1.0) -> peak -24.0f
                 float nodCurve = 0.0f;
                 if (t01 < 0.33f) {
-                    nodCurve = std::sin((t01 / 0.33f) * 3.14159265f) * -6.0f;
+                    nodCurve = std::sin((t01 / 0.33f) * 3.14159265f) * -14.0f;
                 } else if (t01 < 0.66f) {
-                    nodCurve = std::sin(((t01 - 0.33f) / 0.33f) * 3.14159265f) * -6.0f;
+                    nodCurve = std::sin(((t01 - 0.33f) / 0.33f) * 3.14159265f) * -14.0f;
                 } else {
-                    nodCurve = std::sin(((t01 - 0.66f) / 0.34f) * 3.14159265f) * -15.0f;
+                    nodCurve = std::sin(((t01 - 0.66f) / 0.34f) * 3.14159265f) * -24.0f;
                 }
                 burstHeadY = nodCurve;
-                burstBodyY = t01 * -2.0f; // body drops down slightly
+                burstBodyY = t01 * -3.0f + (nodCurve * 0.25f); // body slumps down in sync with head nods
             } else {
                 const float spring = std::sin(t01 * 3.14159265f * 2.5f) * (1.0f - t01) * (1.0f - t01);
                 const float intensity = _activeBurst.intensity * spring;
