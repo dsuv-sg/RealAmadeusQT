@@ -468,7 +468,7 @@ public:
         _emotionTag = normalizedTag;
 
         if (isWakingUp) {
-            _wakeUpTimer = 1.2f; // startled wake-up duration (1.2 seconds)
+            _wakeUpTimer = 2.5f; // startled wake-up duration (2.5 seconds)
             
             // Start the SURPRISED expression & target & burst
             if (_expressionManager != nullptr && _expressions.GetSize() > 0) {
@@ -587,6 +587,8 @@ public:
             _wakeUpTimer -= deltaSeconds;
             if (_wakeUpTimer <= 0.0f) {
                 _wakeUpTimer = 0.0f;
+                _wakeUpHeadX = 0.0f;
+                _wakeUpGazeX = 0.0f;
                 if (_expressionManager != nullptr && _expressions.GetSize() > 0) {
                     ACubismMotion* selected = FindExpression(_emotionTag);
                     if (selected) {
@@ -598,7 +600,13 @@ public:
             } else {
                 EmotionTarget targetBase = GetEmotionTarget(_emotionTag);
                 EmotionTarget targetSurprised = GetEmotionTarget(QStringLiteral("SURPRISED"));
-                float blend = qBound(0.0f, _wakeUpTimer / 1.2f, 1.0f);
+                
+                // Stay fully surprised for the first 0.8 seconds (blend = 1.0), 
+                // then fade out over the remaining 1.7 seconds.
+                float blend = 1.0f;
+                if (_wakeUpTimer < 1.7f) {
+                    blend = qBound(0.0f, _wakeUpTimer / 1.7f, 1.0f);
+                }
                 
                 _targetEmotion.browY = Lerp(targetBase.browY, targetSurprised.browY, blend);
                 _targetEmotion.browForm = Lerp(targetBase.browForm, targetSurprised.browForm, blend);
@@ -613,7 +621,21 @@ public:
                 _targetEmotion.bodyAngleX = Lerp(targetBase.bodyAngleX, targetSurprised.bodyAngleX, blend);
                 _targetEmotion.bodyAngleY = Lerp(targetBase.bodyAngleY, targetSurprised.bodyAngleY, blend);
                 _targetEmotion.bodyAngleZ = Lerp(targetBase.bodyAngleZ, targetSurprised.bodyAngleZ, blend);
+
+                // Startled look around (look right, then look left)
+                float elapsed = 2.5f - _wakeUpTimer;
+                if (elapsed >= 0.7f && elapsed < 2.3f) {
+                    float wave = std::sin((elapsed - 0.7f) * (2.0f * 3.14159265f / 1.6f));
+                    _wakeUpHeadX = wave * 15.0f; // Look right (+15), then look left (-15)
+                    _wakeUpGazeX = wave * 0.7f;  // Eyeball look right (+0.7), then left (-0.7)
+                } else {
+                    _wakeUpHeadX = 0.0f;
+                    _wakeUpGazeX = 0.0f;
+                }
             }
+        } else {
+            _wakeUpHeadX = 0.0f;
+            _wakeUpGazeX = 0.0f;
         }
 
         // Unity parity: smooth emotion blend.
@@ -644,18 +666,17 @@ public:
             const float t01 = _burstProgress;
             
             if (_emotionTag == QStringLiteral("SLEEPING")) {
-                // Custom "nod, nod" (コク、コク) head pitch curve
-                // We want two downward dips in headY (ParamAngleY)
-                // Nod 1: peak at t01 = 0.25 (value = -10.0f)
-                // Nod 2: peak at t01 = 0.75 (value = -15.0f)
+                // Custom "nod, nod, nod" (コク、コク、コクっ) head pitch curve
+                // Nod 1 (light): 0.0s to 1.0s (t01 from 0.0 to 0.33) -> peak -6.0f
+                // Nod 2 (light): 1.0s to 2.0s (t01 from 0.33 to 0.66) -> peak -6.0f
+                // Nod 3 (deep): 2.0s to 3.0s (t01 from 0.66 to 1.0) -> peak -15.0f
                 float nodCurve = 0.0f;
-                if (t01 < 0.5f) {
-                    nodCurve = std::sin(t01 * 2.0f * 3.14159265f) * -10.0f;
-                    if (nodCurve > 0.0f) nodCurve = 0.0f;
+                if (t01 < 0.33f) {
+                    nodCurve = std::sin((t01 / 0.33f) * 3.14159265f) * -6.0f;
+                } else if (t01 < 0.66f) {
+                    nodCurve = std::sin(((t01 - 0.33f) / 0.33f) * 3.14159265f) * -6.0f;
                 } else {
-                    float localT = (t01 - 0.5f) * 2.0f;
-                    nodCurve = std::sin(localT * 3.14159265f) * -15.0f;
-                    if (nodCurve > 0.0f) nodCurve = 0.0f;
+                    nodCurve = std::sin(((t01 - 0.66f) / 0.34f) * 3.14159265f) * -15.0f;
                 }
                 burstHeadY = nodCurve;
                 burstBodyY = t01 * -2.0f; // body drops down slightly
@@ -685,7 +706,7 @@ public:
         _smoothedBodyX = Lerp(_smoothedBodyX, burstBodyX + idleBodyX, motionSmoothT);
         _smoothedBodyY = Lerp(_smoothedBodyY, burstBodyY + idleBodyY, motionSmoothT);
         _smoothedBodyZ = Lerp(_smoothedBodyZ, burstBodyZ + idleBodyZ, motionSmoothT);
-        _smoothedHeadX = Lerp(_smoothedHeadX, burstHeadX + idleHeadX, motionSmoothT);
+        _smoothedHeadX = Lerp(_smoothedHeadX, burstHeadX + idleHeadX + _wakeUpHeadX, motionSmoothT);
         _smoothedHeadY = Lerp(_smoothedHeadY, burstHeadY + idleHeadY, motionSmoothT);
         _smoothedHeadZ = Lerp(_smoothedHeadZ, burstHeadZ + idleHeadZ, motionSmoothT);
 
@@ -741,9 +762,13 @@ public:
         SetParam(_idBreath, (std::sin(_userTimeSeconds * 1.2f) + 1.0f) * 0.5f);
 
         // Eye tracking (Unity parity: smooth + body/head influence)
+        bool disableGaze = (_wakeUpTimer > 0.0f) || (_emotionTag == QStringLiteral("SLEEPING")) || (_currentEmotionTag == QStringLiteral("SLEEPING"));
+        const float targetGazeX = _wakeUpTimer > 0.0f ? _wakeUpGazeX : (disableGaze ? 0.0f : _eyeTrackingX);
+        const float targetGazeY = disableGaze ? 0.0f : _eyeTrackingY;
+
         const float gazeSmoothT = qBound(0.0f, deltaSeconds * 5.0f, 1.0f);
-        _smoothedGazeX = Lerp(_smoothedGazeX, _eyeTrackingX, gazeSmoothT);
-        _smoothedGazeY = Lerp(_smoothedGazeY, _eyeTrackingY, gazeSmoothT);
+        _smoothedGazeX = Lerp(_smoothedGazeX, targetGazeX, gazeSmoothT);
+        _smoothedGazeY = Lerp(_smoothedGazeY, targetGazeY, gazeSmoothT);
 
         if (_idEyeBallX) SetParam(_idEyeBallX, _smoothedGazeX);
         if (_idEyeBallY) SetParam(_idEyeBallY, _smoothedGazeY);
@@ -931,7 +956,7 @@ private:
             e.eyeOpen = 0.0f; e.eyeSmile = 0.0f;
             e.mouthForm = -0.1f;
             e.bodyAngleX = -1.0f; e.bodyAngleY = -2.0f; e.bodyAngleZ = -2.0f;
-            e.headAngleX = -12.0f; e.headAngleY = -5.0f; e.headAngleZ = -8.0f;
+            e.headAngleX = -12.0f; e.headAngleY = -10.0f; e.headAngleZ = -8.0f;
             e.cheek = 0.0f;
         }
         return e;
@@ -987,7 +1012,7 @@ private:
         } else if (t == QStringLiteral("SLEEPING")) {
             b.bodyX = -1.0f; b.bodyY = -2.0f; b.bodyZ = -1.0f;
             b.headX = -2.0f; b.headY = -3.0f; b.headZ = -2.0f;
-            b.duration = 2.0f; b.intensity = 0.3f;
+            b.duration = 3.0f; b.intensity = 0.3f;
         }
         return b;
     }
@@ -1133,6 +1158,8 @@ private:
     float _burstTimer = 0.0f;
     float _burstProgress = 1.0f;
     float _wakeUpTimer = 0.0f;
+    float _wakeUpHeadX = 0.0f;
+    float _wakeUpGazeX = 0.0f;
     QString _currentEmotionTag;
     BlinkState _blinkState = BlinkState::Open;
     float _blinkTimer = 0.0f;
