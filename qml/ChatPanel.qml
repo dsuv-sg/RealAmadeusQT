@@ -32,6 +32,19 @@ Item {
     property string lastStreamLoggedPageText: ""
     property int turnCount: 0
 
+    // Idle detection
+    property int idleSeconds: 0
+    property int idleThreshold: 60 // 60 seconds of inactivity to fall asleep
+
+    function resetIdleTimer() {
+        if (root.idleSeconds > 0) {
+            root.idleSeconds = 0;
+        }
+        if (root.currentEmotionTag === "SLEEPING") {
+            root.currentEmotionTag = "NORMAL";
+        }
+    }
+
     // Typewriter paging properties
     property bool typewriterClearPageOnResume: false
     property bool streamClearPageOnResume: false
@@ -847,6 +860,19 @@ Item {
     }
 
     Timer {
+        id: idleTimer
+        interval: 1000
+        running: root.chatState === "inputReady" || root.chatState === "waitForAdvance"
+        repeat: true
+        onTriggered: {
+            root.idleSeconds += 1;
+            if (root.idleSeconds >= root.idleThreshold && root.currentEmotionTag !== "SLEEPING") {
+                root.currentEmotionTag = "SLEEPING";
+            }
+        }
+    }
+
+    Timer {
         id: waitingDotsTimer
         interval: 400
         repeat: true
@@ -984,12 +1010,13 @@ Item {
                 id: chatInput
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                placeholderText: t("enter_message", "メッセージを入力")
+                placeholderText: root.currentEmotionTag === "SLEEPING" ? "Zzz... (キー入力やマウス移動で起こす)" : t("enter_message", "メッセージを入力")
                 placeholderTextColor: Qt.rgba(128/255, 128/255, 128/255, 153/255)
                 color: "#ffffff"
-                font { family: "MS Mincho"; pixelSize: 28; italic: chatInput.text.length === 0 }
+                font { family: "MS Mincho"; pixelSize: 28; italic: chatInput.text.length === 0 || root.currentEmotionTag === "SLEEPING" }
                 background: null
                 focus: true
+                onTextChanged: root.resetIdleTimer()
 
                 // Caret & Selection
                 cursorDelegate: Rectangle {

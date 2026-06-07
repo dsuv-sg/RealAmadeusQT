@@ -856,6 +856,13 @@ private:
             e.bodyAngleX = -3.0f; e.bodyAngleY = 0.0f; e.bodyAngleZ = 0.0f;
             e.headAngleX = -2.0f; e.headAngleY = 0.0f; e.headAngleZ = 0.0f;
             e.cheek = 0.6f;
+        } else if (t == QStringLiteral("SLEEPING")) {
+            e.browY = -0.3f; e.browForm = 0.2f; e.browAngle = -0.2f;
+            e.eyeOpen = 0.0f; e.eyeSmile = 0.0f;
+            e.mouthForm = -0.1f;
+            e.bodyAngleX = -1.0f; e.bodyAngleY = -2.0f; e.bodyAngleZ = -2.0f;
+            e.headAngleX = -12.0f; e.headAngleY = -5.0f; e.headAngleZ = -8.0f;
+            e.cheek = 0.0f;
         }
         return e;
     }
@@ -907,6 +914,10 @@ private:
             b.bodyX = 0.0f; b.bodyY = 0.0f; b.bodyZ = 0.0f;
             b.headX = 0.0f; b.headY = 0.0f; b.headZ = 0.0f;
             b.duration = 0.2f; b.intensity = 2.0f;
+        } else if (t == QStringLiteral("SLEEPING")) {
+            b.bodyX = -1.0f; b.bodyY = -2.0f; b.bodyZ = -1.0f;
+            b.headX = -2.0f; b.headY = -3.0f; b.headZ = -2.0f;
+            b.duration = 1.2f; b.intensity = 0.3f;
         }
         return b;
     }
@@ -997,6 +1008,13 @@ private:
             headX = Drift(phase, 3.0f, 36.0f, 3.0f) + panic;
             headY = panic * 1.5f;
             headZ = panic * 0.5f;
+        } else if (t == QStringLiteral("SLEEPING")) {
+            bodyX = Drift(phase * 0.4f, 0.2f, 0.0f, 0.8f);
+            bodyY = Drift(phase * 0.4f, 0.8f, 10.0f, 1.2f) + std::sin(phase * 0.4f) * 0.5f;
+            bodyZ = Drift(phase * 0.4f, 0.1f, 20.0f, 0.4f);
+            headX = Drift(phase * 0.4f, 0.3f, 30.0f, 1.5f) + std::sin(phase * 0.4f * 0.8f) * 0.8f;
+            headY = Drift(phase * 0.4f, 0.2f, 40.0f, 1.0f);
+            headZ = Drift(phase * 0.4f, 0.15f, 50.0f, 0.5f);
         }
     }
 

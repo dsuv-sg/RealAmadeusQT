@@ -228,6 +228,9 @@ ApplicationWindow {
         target: null
         acceptedDevices: PointerDevice.Mouse
         onPointChanged: {
+            if (systemPanel.chatPanel) {
+                systemPanel.chatPanel.resetIdleTimer();
+            }
             if (AppSettings.getInt("Config_EyeTracking", 0) !== 1) return;
             if (!systemPanel.chatPanel) return;
             if (!systemPanel.chatPanel.live2DItem) return;
