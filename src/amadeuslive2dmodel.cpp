@@ -624,8 +624,8 @@ public:
 
                 // Startled look around (look right, then look left)
                 float elapsed = 2.5f - _wakeUpTimer;
-                if (elapsed >= 0.7f && elapsed < 2.3f) {
-                    float wave = std::sin((elapsed - 0.7f) * (2.0f * 3.14159265f / 1.6f));
+                if (elapsed >= 0.4f && elapsed < 1.4f) {
+                    float wave = std::sin((elapsed - 0.4f) * (2.0f * 3.14159265f / 1.0f));
                     _wakeUpHeadX = wave * 15.0f; // Look right (+15), then look left (-15)
                     _wakeUpGazeX = wave * 0.7f;  // Eyeball look right (+0.7), then left (-0.7)
                 } else {
@@ -711,7 +711,29 @@ public:
         _smoothedHeadZ = Lerp(_smoothedHeadZ, burstHeadZ + idleHeadZ, motionSmoothT);
 
         UpdateBlink(deltaSeconds);
-        float eyeOpenValue = _currentEmotion.eyeOpen * _blinkValue;
+        float nodEyeOpen = 1.0f;
+        if (_emotionTag == QStringLiteral("SLEEPING") && _burstProgress < 1.0f) {
+            const float t01 = _burstProgress;
+            if (t01 < 0.33f) {
+                float localT = t01 / 0.33f;
+                nodEyeOpen = 1.0f - std::sin(localT * 3.14159265f);
+            } else if (t01 < 0.66f) {
+                float localT = (t01 - 0.33f) / 0.33f;
+                nodEyeOpen = 1.0f - std::sin(localT * 3.14159265f);
+            } else {
+                float localT = (t01 - 0.66f) / 0.34f;
+                if (localT < 0.5f) {
+                    nodEyeOpen = 1.0f - std::sin(localT * 3.14159265f);
+                } else {
+                    nodEyeOpen = 0.0f;
+                }
+            }
+        }
+        float baseEyeOpen = _currentEmotion.eyeOpen;
+        if (_emotionTag == QStringLiteral("SLEEPING") && _burstProgress < 1.0f) {
+            baseEyeOpen = nodEyeOpen;
+        }
+        float eyeOpenValue = baseEyeOpen * _blinkValue;
         eyeOpenValue = qMax(0.0f, eyeOpenValue);
 
         SetParam(_idBrowLY, _currentEmotion.browY);
@@ -1012,7 +1034,7 @@ private:
         } else if (t == QStringLiteral("SLEEPING")) {
             b.bodyX = -1.0f; b.bodyY = -2.0f; b.bodyZ = -1.0f;
             b.headX = -2.0f; b.headY = -3.0f; b.headZ = -2.0f;
-            b.duration = 3.0f; b.intensity = 0.3f;
+            b.duration = 4.5f; b.intensity = 0.3f;
         }
         return b;
     }
