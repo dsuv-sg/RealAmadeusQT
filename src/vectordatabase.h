@@ -9,6 +9,7 @@
 #include <QString>
 #include <QMap>
 #include <QFile>
+#include <QMutex>
 
 /// VectorDatabase - RAG vector store for semantic memory search
 /// Communicates with Python embedding server
@@ -114,4 +115,5 @@ private:
     int m_topK = 5;
     qreal m_threshold = 0.7;
     bool m_serverAvailable = false;
+    mutable QMutex m_mutex;
 };

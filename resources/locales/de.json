@@ -45,11 +45,19 @@
   "help_save_close": "Speichern und schließen",
   "help_select_item": "Element auswählen",
   "help_confirm_advance": "Bestätigen / Fortfahren",
+  "help_cancel_chat": "Gespräch abbrechen",
   "changelog_v12": "Unterstützung für Chinesisch, Koreanisch, Spanisch, Französisch, Deutsch und Russisch hinzugefügt.\nBlickverfolgung hinzugefügt.\nDesktop-Benachrichtigungsfunktion implementiert.\nLeichtmodus hinzugefügt.\nBildschirmmodus-Umschaltung mit Alt+Enter und F11 hinzugefügt.\nOllama/OpenRouter API-Anbieter hinzugefügt.\nUI-Fehler behoben.\nSicherheit für API-Schlüssel verbessert.\nLeistung verbessert.",
   "changelog_v11": "Implementierung der Klickauswahl für den Menübildschirm.\nSprachumschaltung zwischen Japanisch und Englisch hinzugefügt.\n[Schließen/Abbrechen/Anwenden]-Schaltflächen zu verschiedenen Bildschirmen hinzugefügt.\nScrollbalken für ChangeLog und BackLog implementiert.\nUI-Elemente für bessere Sichtbarkeit aktualisiert.\nVeröffentlichung der leichten Version gestartet.",
   "changelog_v101": "Problem mit abnormal hoher GPU-Auslastung behoben.\nProblem mit der Fensterskalierung bei Minimierung im Vollbild behoben.\nProblem behoben, bei dem eine erneute Anmeldung nach der Abmeldung unmöglich war.\nFehler behoben, bei dem Emotionstags bei einigen KI-Diensten angezeigt wurden.",
   "changelog_v10": "Erste Version von Real Amadeus veröffentlicht.\nEnthält nur grundlegende Konversationsfunktionen.",
   "login_user_id": "USER ID",
   "login_password": "PASSWORD",
-  "login_access_denied": "ACCESS DENIED"
+  "login_access_denied": "ACCESS DENIED",
+  "setting_openai_compatible": "Kompatible API verwenden",
+  "setting_openai_base_url": "Basis-URL",
+  "setting_openai_base_url_example": "Beispiel für Basis-URL: https://api.example.com/v1",
+  "openai_compatible": "OpenAI-kompatibel",
+  "cancel_hint": "CTRL+C zum Abbrechen",
+  "changelog_v13": "Live2D-Einnickanimationen implementiert.\nUnterstützung für OpenAI-kompatible API und Eingabe der benutzerdefinierten Basis-URL implementiert.\nUI angepasst.\nAbbruchfunktion während des API-Ladens implementiert.\nLive2D-Lippensynchronisation implementiert.\nSkalierung unter Beibehaltung des Seitenverhältnisses korrigiert.\nDeadlocks beim API-Streaming behoben.\nSicherheit durch verschlüsselte Speicherung von API-Schlüsseln verbessert.\nRAG-Datenpersistenz und optimierte VectorDatabase-Verbindungen implementiert.\nUnterstützung für Portugiesisch, Ukrainisch und Türkisch hinzugefügt.\nDer Standard-Startbildschirmmodus wurde auf Fenstermodus geändert, um Bildschirmflackern und Startabstürze bei bestimmten Hardwarekonfigurationen zu verhindern.\nAutomatische Update-Prüfung beim Start und ein Auto-Updater wurden implementiert.\nSatzteilung in anderen Sprachen als Japanisch verbessert, damit Dialoge an Satzenden (Punkten usw.) korrekt umgebrochen werden.",
+  "update_confirm": "Neue Version %1 ist verfügbar.\nMöchten Sie aktualisieren?"
 }

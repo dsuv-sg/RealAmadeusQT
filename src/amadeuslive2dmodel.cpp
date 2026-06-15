@@ -480,6 +480,7 @@ public:
             
             _targetEmotion = GetEmotionTarget(QStringLiteral("SURPRISED"));
             _activeBurst = GetMotionBurst(QStringLiteral("SURPRISED"));
+            _activeBurstTag = QStringLiteral("SURPRISED");
             _burstTimer = 0.0f;
             _burstProgress = 0.0f;
             _idlePhase = 0.0f;
@@ -498,7 +499,9 @@ public:
             _targetEmotion = GetEmotionTarget(_emotionTag);
             if (_emotionTag != _currentEmotionTag) {
                 _activeBurst = GetMotionBurst(_emotionTag);
+                _activeBurstTag = _emotionTag;
                 _burstTimer = 0.0f;
+                // Play nodding animation once when entering sleep state, but it won't loop.
                 _burstProgress = 0.0f;
                 _idlePhase = 0.0f;
                 _currentEmotionTag = _emotionTag;
@@ -561,14 +564,35 @@ public:
 
         // Lightweight mode: skip every other frame
         if (_lightweightMode) {
+            _accumulatedDelta += deltaSeconds;
             _lightweightFrameSkip = (_lightweightFrameSkip + 1) % 2;
             if (_lightweightFrameSkip != 0) {
                 return;
             }
+            deltaSeconds = _accumulatedDelta;
+            _accumulatedDelta = 0.0f;
+        } else {
+            _accumulatedDelta = 0.0f;
         }
 
         _userTimeSeconds += deltaSeconds;
         _idlePhase += deltaSeconds;
+
+        // Sneeze Easter Egg (idle normal state, not speaking/loading/waking/sleeping)
+        if (_emotionTag == QStringLiteral("NORMAL") && _burstProgress >= 1.0f && _wakeUpTimer <= 0.0f && _lipSyncValue <= 0.01f) {
+            _sneezeEasterEggTimer += deltaSeconds;
+            if (_sneezeEasterEggTimer >= 45.0f) {
+                _sneezeEasterEggTimer = 0.0f;
+                if (RandomRange(0.0f, 1.0f) < 0.15f) {
+                    _activeBurst = GetMotionBurst(QStringLiteral("SNEEZE"));
+                    _activeBurstTag = QStringLiteral("SNEEZE");
+                    _burstTimer = 0.0f;
+                    _burstProgress = 0.0f;
+                }
+            }
+        } else {
+            _sneezeEasterEggTimer = 0.0f;
+        }
 
         _model->LoadParameters();
 
@@ -660,6 +684,10 @@ public:
         float burstHeadX = 0.0f;
         float burstHeadY = 0.0f;
         float burstHeadZ = 0.0f;
+        float sneezeMouthOpen = 0.0f;
+        float sneezeEyeOpen = 1.0f;
+        bool isSneezeActive = (_burstProgress < 1.0f && _activeBurstTag == QStringLiteral("SNEEZE"));
+
         if (_burstProgress < 1.0f) {
             _burstTimer += deltaSeconds;
             _burstProgress = qBound(0.0f, _burstTimer / qMax(0.001f, _activeBurst.duration), 1.0f);
@@ -667,19 +695,45 @@ public:
             
             if (_emotionTag == QStringLiteral("SLEEPING")) {
                 // Custom "nod, nod, nod" (コク、コク、コクっ) head pitch curve
-                // Nod 1 (light but distinct): 0.0s to 1.5s (t01 from 0.0 to 0.33) -> peak -14.0f
-                // Nod 2 (light but distinct): 1.5s to 3.0s (t01 from 0.33 to 0.66) -> peak -14.0f
-                // Nod 3 (deep): 3.0s to 4.5s (t01 from 0.66 to 1.0) -> peak -24.0f
+                // Nod 1 (light but distinct): 0.0s to 1.5s (t01 from 0.0 to 0.33) -> peak -10.0f (softened)
+                // Nod 2 (light but distinct): 1.5s to 3.0s (t01 from 0.33 to 0.66) -> peak -10.0f (softened)
+                // Nod 3 (deep): 3.0s to 4.5s (t01 from 0.66 to 1.0) -> peak -18.0f (softened)
                 float nodCurve = 0.0f;
                 if (t01 < 0.33f) {
-                    nodCurve = std::sin((t01 / 0.33f) * 3.14159265f) * -14.0f;
+                    nodCurve = std::sin((t01 / 0.33f) * 3.14159265f) * -10.0f;
                 } else if (t01 < 0.66f) {
-                    nodCurve = std::sin(((t01 - 0.33f) / 0.33f) * 3.14159265f) * -14.0f;
+                    nodCurve = std::sin(((t01 - 0.33f) / 0.33f) * 3.14159265f) * -10.0f;
                 } else {
-                    nodCurve = std::sin(((t01 - 0.66f) / 0.34f) * 3.14159265f) * -24.0f;
+                    nodCurve = std::sin(((t01 - 0.66f) / 0.34f) * 3.14159265f) * -18.0f;
                 }
                 burstHeadY = nodCurve;
-                burstBodyY = t01 * -3.0f + (nodCurve * 0.25f); // body slumps down in sync with head nods
+                burstBodyY = t01 * -1.5f + (nodCurve * 0.15f); // body slumps down in sync with head nods (softened)
+            } else if (_activeBurstTag == QStringLiteral("SNEEZE")) {
+                // Dynamic sneeze animation curve (Inhale -> Sneeze snap -> Recover)
+                if (t01 < 0.5f) {
+                    // Inhale / Wind-up phase (0.0 to 1.1s): tilt head back slowly, close eyes
+                    float localT = t01 / 0.5f;
+                    burstHeadY = localT * 12.0f; // Tilt back
+                    burstHeadX = localT * -3.0f; // Tilt slightly side
+                    burstBodyY = localT * 1.5f;
+                    sneezeEyeOpen = 1.0f - (localT * 0.9f); // eyes narrow down
+                } else if (t01 < 0.65f) {
+                    // Sneeze / Snap phase (1.1s to 1.4s): sneeze jerk forward, open mouth wide
+                    float localT = (t01 - 0.5f) / 0.15f;
+                    burstHeadY = 12.0f - (localT * 32.0f); // snap down to -20.0f
+                    burstHeadX = -3.0f + (localT * 6.0f);
+                    burstBodyY = 1.5f - (localT * 5.0f); // chest sinks down
+                    sneezeEyeOpen = 0.1f * (1.0f - localT); // eyes shut tight
+                    sneezeMouthOpen = localT * 0.9f; // mouth opens wide
+                } else {
+                    // Recover phase (1.4s to 2.2s): slow recovery, bashful pose
+                    float localT = (t01 - 0.65f) / 0.35f;
+                    burstHeadY = -20.0f + (localT * 20.0f);
+                    burstHeadX = 3.0f - (localT * 3.0f);
+                    burstBodyY = -3.5f + (localT * 3.5f);
+                    sneezeEyeOpen = 0.0f + (localT * 1.0f); // eyes open back up
+                    sneezeMouthOpen = 0.9f * (1.0f - localT); // mouth closes
+                }
             } else {
                 const float spring = std::sin(t01 * 3.14159265f * 2.5f) * (1.0f - t01) * (1.0f - t01);
                 const float intensity = _activeBurst.intensity * spring;
@@ -714,24 +768,23 @@ public:
         float nodEyeOpen = 1.0f;
         if (_emotionTag == QStringLiteral("SLEEPING") && _burstProgress < 1.0f) {
             const float t01 = _burstProgress;
+            float localT = 0.0f;
             if (t01 < 0.33f) {
-                float localT = t01 / 0.33f;
-                nodEyeOpen = 1.0f - std::sin(localT * 3.14159265f);
+                localT = t01 / 0.33f;
             } else if (t01 < 0.66f) {
-                float localT = (t01 - 0.33f) / 0.33f;
-                nodEyeOpen = 1.0f - std::sin(localT * 3.14159265f);
+                localT = (t01 - 0.33f) / 0.33f;
             } else {
-                float localT = (t01 - 0.66f) / 0.34f;
-                if (localT < 0.5f) {
-                    nodEyeOpen = 1.0f - std::sin(localT * 3.14159265f);
-                } else {
-                    nodEyeOpen = 0.0f;
-                }
+                localT = (t01 - 0.66f) / 0.34f;
             }
+            // Briefly and slightly half-open the eyes (max 0.18f) during each nod wave,
+            // returning to 0.0f (fully closed) at the start and end of each wave to prevent eye pop/flicker.
+            nodEyeOpen = 0.18f * std::sin(localT * 3.14159265f);
         }
         float baseEyeOpen = _currentEmotion.eyeOpen;
         if (_emotionTag == QStringLiteral("SLEEPING") && _burstProgress < 1.0f) {
             baseEyeOpen = nodEyeOpen;
+        } else if (isSneezeActive) {
+            baseEyeOpen = sneezeEyeOpen;
         }
         float eyeOpenValue = baseEyeOpen * _blinkValue;
         eyeOpenValue = qMax(0.0f, eyeOpenValue);
@@ -763,7 +816,9 @@ public:
         SetParam(_idAngleZ, _currentEmotion.headAngleZ + _smoothedHeadZ);
 
         const bool isActivelyTyping = _lipSyncValue > 0.01f;
-        if (isActivelyTyping) {
+        if (isSneezeActive) {
+            _mouthOpen = Lerp(_mouthOpen, sneezeMouthOpen, qBound(0.0f, deltaSeconds * 16.0f, 1.0f));
+        } else if (isActivelyTyping) {
             float targetMouth = 0.5f;
             if (!_spokenChar.isEmpty()) {
                 targetMouth = GetVowelMouthOpening(_spokenChar);
@@ -781,7 +836,8 @@ public:
         }
         SetParam(_idMouthOpenY, _mouthOpen);
 
-        SetParam(_idBreath, (std::sin(_userTimeSeconds * 1.2f) + 1.0f) * 0.5f);
+        float breathCycleSpeed = (_emotionTag == QStringLiteral("SLEEPING")) ? 0.8f : 1.2f;
+        SetParam(_idBreath, (std::sin(_userTimeSeconds * breathCycleSpeed) + 1.0f) * 0.5f);
 
         // Eye tracking (Unity parity: smooth + body/head influence)
         bool disableGaze = (_wakeUpTimer > 0.0f) || (_emotionTag == QStringLiteral("SLEEPING")) || (_currentEmotionTag == QStringLiteral("SLEEPING"));
@@ -1035,6 +1091,10 @@ private:
             b.bodyX = -1.0f; b.bodyY = -2.0f; b.bodyZ = -1.0f;
             b.headX = -2.0f; b.headY = -3.0f; b.headZ = -2.0f;
             b.duration = 4.5f; b.intensity = 0.3f;
+        } else if (t == QStringLiteral("SNEEZE")) {
+            b.bodyX = 0.0f; b.bodyY = 0.0f; b.bodyZ = 0.0f;
+            b.headX = 0.0f; b.headY = 0.0f; b.headZ = 0.0f;
+            b.duration = 2.2f; b.intensity = 1.0f;
         }
         return b;
     }
@@ -1126,12 +1186,13 @@ private:
             headY = panic * 1.5f;
             headZ = panic * 0.5f;
         } else if (t == QStringLiteral("SLEEPING")) {
-            bodyX = Drift(phase * 0.4f, 0.2f, 0.0f, 0.8f);
-            bodyY = Drift(phase * 0.4f, 0.8f, 10.0f, 1.2f) + std::sin(phase * 0.4f) * 0.5f;
-            bodyZ = Drift(phase * 0.4f, 0.1f, 20.0f, 0.4f);
-            headX = Drift(phase * 0.4f, 0.3f, 30.0f, 1.5f) + std::sin(phase * 0.4f * 0.8f) * 0.8f;
-            headY = Drift(phase * 0.4f, 0.2f, 40.0f, 1.0f);
-            headZ = Drift(phase * 0.4f, 0.15f, 50.0f, 0.5f);
+            // Slower, deeper chest expansion and breathing rise/fall (bodyY, headY) synchronized with breath speed
+            bodyX = Drift(phase * 0.3f, 0.15f, 0.0f, 0.5f);
+            bodyY = Drift(phase * 0.3f, 0.5f, 10.0f, 0.6f) + std::sin(phase * 0.8f) * 0.6f; // breathing rise/fall (softened)
+            bodyZ = Drift(phase * 0.3f, 0.1f, 20.0f, 0.3f);
+            headX = Drift(phase * 0.3f, 0.2f, 30.0f, 1.0f);
+            headY = Drift(phase * 0.3f, 0.15f, 40.0f, 0.5f) + std::sin(phase * 0.8f) * 0.3f; // head moves in sync with breathing
+            headZ = Drift(phase * 0.3f, 0.2f, 50.0f, 1.5f); // gentle head tilting sideways
         }
     }
 
@@ -1180,6 +1241,10 @@ private:
     float _burstTimer = 0.0f;
     float _burstProgress = 1.0f;
     float _wakeUpTimer = 0.0f;
+    float _sleepingNodTimer = 0.0f;
+    float _nextSleepingNodInterval = 30.0f;
+    QString _activeBurstTag;
+    float _sneezeEasterEggTimer = 0.0f;
     float _wakeUpHeadX = 0.0f;
     float _wakeUpGazeX = 0.0f;
     QString _currentEmotionTag;
@@ -1201,6 +1266,7 @@ private:
     float _eyeTrackingY = 0.0f;
     bool _lightweightMode = false;
     int _lightweightFrameSkip = 0;
+    float _accumulatedDelta = 0.0f;
     QString _modelDirectory;
     QString _emotionTag;
     CubismModelSettingJson* _setting;

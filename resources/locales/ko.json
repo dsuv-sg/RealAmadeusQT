@@ -45,11 +45,20 @@
   "help_save_close": "저장하고 닫기",
   "help_select_item": "항목 선택",
   "help_confirm_advance": "결정 / 대화 진행",
+  "help_cancel_chat": "대화 취소",
   "changelog_v12": "중국어/한국어/스페인어/프랑스어/독일어/러시아어 지원 추가.\n시선 추적 추가.\n데스크톱 알림 기능을 구현했습니다.\n경량 모드 추가.\nAlt+Enter, F11 화면 모드 전환 추가.\nOllama/OpenRouter API 제공자를 추가했습니다.\nUI 버그 수정.\nAPI 키 등의 보안을 강화했습니다.\n성능 개선.",
   "changelog_v11": "메뉴 화면의 클릭 선택을 구현했습니다.\n일본어/영어 언어 전환을 구현했습니다.\n각종 화면에 [닫기/취소/적용] 버튼을 구현했습니다.\nChangeLog/BackLog용 스크롤바를 구현했습니다.\n가시성 향상을 위해 UI 일부를 변경했습니다.\n경량판 릴리스를 시작했습니다.",
   "changelog_v101": "GPU 사용률이 비정상적으로 높아지는 문제를 수정했습니다.\n전체 화면 상태에서 최소화 시 창이 비정상적으로 작아지는 문제를 수정했습니다.\n로그아웃 후 재로그인이 불가능해지는 문제를 수정했습니다.\n일부 AI 서비스 이용 시 감정 태그가 표시되는 문제를 수정했습니다.",
   "changelog_v10": "Real Amadeus의 최초 버전을 릴리스했습니다.\n기본적인 대화 기능만을 갖추고 있습니다.",
   "login_user_id": "USER ID",
   "login_password": "PASSWORD",
-  "login_access_denied": "ACCESS DENIED"
+  "login_access_denied": "ACCESS DENIED",
+  "setting_openai_compatible": "호환 API 사용",
+  "setting_openai_base_url": "기본 URL",
+  "setting_openai_base_url_example": "기본 URL 예시: https://api.example.com/v1",
+  "openai_compatible": "OpenAI 호환",
+  "cancel_hint": "CTRL+C로 취소",
+  "sleeping_placeholder": "Zzz... (키 입력이나 마우스 이동으로 깨우기)",
+  "changelog_v13": "Live2D 꾸벅거림 모션을 구현했습니다.\nOpenAI 호환 API 사용 및 기본 URL 지정 기능을 구현했습니다.\nUI를 조정했습니다.\n응답 로딩 중 취소 기능을 구현했습니다.\nLive2D 립싱크를 구현했습니다.\n화면 비율을 유지한 스케일링을 수행하도록 수정했습니다.\nAPI 스트리밍 통신 시의 데드락을 수정했습니다.\nAPI 키를 암호화 저장하여 보안을 강화했습니다.\nRAG 데이터 영속화 및 벡터 DB 연결 최적화를 구현했습니다.\n포르투갈어/우크라이나어/터키어 지원을 추가했습니다.\n부팅 시 화면 깜빡임 및 일부 환경에서의 실행 실패를 방지하기 위해 기본 화면 모드를 창 모드로 변경했습니다.\n시작 시 최신 버전 자동 감지 및 자동 업데이트 기능을 구현했습니다.\n일본어 이외의 언어에서도 대화 텍스트가 문장 끝(마침표 등)에서 적절히 구분되도록 개선했습니다.",
+  "update_confirm": "새로운 버전 %1을 사용할 수 있습니다.\n업데이트하시겠습니까?"
 }

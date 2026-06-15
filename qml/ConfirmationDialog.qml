@@ -12,7 +12,7 @@ Item {
     property int    selectedIndex: 0 // 0: YES, 1: NO
     property int    configLanguage: AppSettings.getInt("Config_Language", 0)
 
-    FontLoader { id: notoKR; source: "file:///" + Qt.application.dirPath + "/resources/fonts/NotoSerifCJKkr-Regular.otf" }
+    FontLoader { id: notoKR; source: "file:///" + appDirPath + "/resources/fonts/NotoSerifCJKkr-Regular.otf" }
 
     function t(key, defaultValue) {
         var trans = Localization.translations;
@@ -28,7 +28,7 @@ Item {
     // If applyRussianSpacing is true, Cyrillic uses tighter letter spacing.
     function mixedTextHtml(text, pixelSize, applyRussianSpacing) {
         if (!text) return "";
-        if (applyRussianSpacing === undefined) applyRussianSpacing = false;
+        if (applyRussianSpacing === undefined) applyRussianSpacing = true;
 
         function escapeHtml(str) {
             return str.replace(/&/g, "&amp;")
@@ -51,20 +51,42 @@ Item {
                 } else if (segSpacing !== 0.0) {
                     html += '<span style="font-family: \'' + segFont + '\'; letter-spacing: ' + segSpacing + 'px;">' + escapeHtml(segText) + '</span>';
                 } else if (applyRussianSpacing && segFont === "MS Mincho") {
-                    // Check if Cyrillic run
-                    var runIsCyrillic = false;
-                    for (var j = 0; j < segText.length; j++) {
-                        var code = segText.charCodeAt(j);
-                        if (code >= 0x0400 && code <= 0x04FF) {
-                            runIsCyrillic = true;
-                            break;
+                    var runHtml = "";
+                    var curType = "";
+                    var curText = "";
+                    
+                    function flushRun() {
+                        if (curText.length === 0) return;
+                        if (curType === "cyrillic") {
+                            var spacing = (root.configLanguage === 8) ? "-12.0px" : "-8.0px";
+                            runHtml += '<span style="font-family: \'MS Mincho\'; letter-spacing: ' + spacing + ';">' + escapeHtml(curText) + '</span>';
+                        } else if (curType === "cyrillic_i") {
+                            var spacing = (root.configLanguage === 8) ? "-7.0px" : "-5.0px";
+                            runHtml += '<span style="font-family: \'MS Mincho\'; letter-spacing: ' + spacing + ';">' + escapeHtml(curText) + '</span>';
+                        } else {
+                            runHtml += '<span style="font-family: \'MS Mincho\';">' + escapeHtml(curText) + '</span>';
                         }
+                        curText = "";
                     }
-                    if (runIsCyrillic) {
-                        html += '<span style="font-family: \'MS Mincho\'; letter-spacing: -8.4px;">' + escapeHtml(segText) + '</span>';
-                    } else {
-                        html += '<span style="font-family: \'MS Mincho\';">' + escapeHtml(segText) + '</span>';
+                    
+                    for (var j = 0; j < segText.length; j++) {
+                        var c = segText[j];
+                        var code = c.charCodeAt(0);
+                        var type = "other";
+                        if (code === 0x0406 || code === 0x0456 || code === 0x0407 || code === 0x0457) {
+                            type = "cyrillic_i";
+                        } else if (code >= 0x0400 && code <= 0x04FF) {
+                            type = "cyrillic";
+                        }
+                        
+                        if (type !== curType && curText.length > 0) {
+                            flushRun();
+                        }
+                        if (curText.length === 0) curType = type;
+                        curText += c;
                     }
+                    flushRun();
+                    html += runHtml;
                 } else {
                     html += '<span style="font-family: \'' + segFont + '\';">' + escapeHtml(segText) + '</span>';
                 }
@@ -77,6 +99,7 @@ Item {
             if (code >= 0xAC00 && code <= 0xD7AF) return "hangul";
             if (code >= 0x1100 && code <= 0x11FF) return "hangul";
             if (code >= 0x3130 && code <= 0x318F) return "hangul";
+            if (applyRussianSpacing && (code === 0x0406 || code === 0x0456 || code === 0x0407 || code === 0x0457)) return "cyrillic_i";
             if (applyRussianSpacing && code >= 0x0400 && code <= 0x04FF) return "cyrillic";
             return "other";
         }
@@ -91,7 +114,11 @@ Item {
                 var family = notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR";
                 html += '<span style="font-family: \'' + family + '\';">' + escapeHtml(currentText) + '</span>';
             } else if (currentType === "cyrillic") {
-                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: -8.4px;">' + escapeHtml(currentText) + '</span>';
+                var spacing = (root.configLanguage === 8) ? "-12.0px" : "-8.0px";
+                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span>';
+            } else if (currentType === "cyrillic_i") {
+                var spacing = (root.configLanguage === 8) ? "-7.0px" : "-5.0px";
+                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span>';
             } else {
                 html += '<span style="font-family: \'MS Mincho\';">' + escapeHtml(currentText) + '</span>';
             }

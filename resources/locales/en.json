@@ -45,11 +45,20 @@
   "help_save_close": "Save and Close",
   "help_select_item": "Select Item",
   "help_confirm_advance": "Confirm / Advance",
+  "help_cancel_chat": "Cancel conversation",
   "changelog_v12": "Added support for Chinese, Korean, Spanish, French, German, and Russian.\nAdded eye tracking.\nImplemented desktop notification feature.\nAdded lightweight mode.\nImplemented screen mode toggle with Alt+Enter and F11.\nAdded Ollama and OpenRouter API providers.\nFixed UI bugs.\nImproved security for API keys.\nImproved performance.",
   "changelog_v11": "Implemented click selection for the menu screen.\nAdded language switching between Japanese and English.\nAdded [Close/Cancel/Apply] buttons to various screens.\nImplemented scrollbars for ChangeLog and BackLog.\nUpdated UI elements for better visibility.\nStarted release of the lightweight version.",
   "changelog_v101": "Fixed an issue where GPU usage was abnormally high.\nFixed a window scaling issue when minimizing in fullscreen.\nFixed an issue where re-logging in after logout was impossible.\nFixed a bug where emotion tags were appearing for some AI services.",
   "changelog_v10": "Released the first version of Real Amadeus.\nIncludes basic conversation features.",
   "login_user_id": "USER ID",
   "login_password": "PASSWORD",
-  "login_access_denied": "ACCESS DENIED"
+  "login_access_denied": "ACCESS DENIED",
+  "setting_openai_compatible": "Use Compatible API",
+  "setting_openai_base_url": "Base URL",
+  "setting_openai_base_url_example": "Base URL Example: https://api.example.com/v1",
+  "openai_compatible": "OpenAI Compatible",
+  "cancel_hint": "CTRL+C to cancel",
+  "sleeping_placeholder": "Zzz... (Press any key or move mouse to wake up)",
+  "changelog_v13": "Implemented Live2D nodding animations.\nImplemented OpenAI compatible API support and custom base URL inputs.\nAdjusted the UI.\nImplemented cancel feature during API loading.\nImplemented Live2D lip-sync.\nFixed to scale while maintaining the aspect ratio.\nFixed deadlocks in API streaming.\nImproved security by encrypting API keys.\nImplemented RAG data persistence and optimized VectorDatabase connections.\nAdded support for Portuguese, Ukrainian, and Turkish.\nChanged the default startup screen mode to Windowed to prevent screen flickering and startup crashes on certain hardware configurations.\nImplemented automatic update checks at startup and an auto-updater.\nImproved sentence splitting in non-Japanese languages to ensure dialogue wraps correctly at sentence endings (periods, etc.).",
+  "update_confirm": "New version %1 is available.\nDo you want to update?"
 }

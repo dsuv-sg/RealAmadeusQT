@@ -5,11 +5,13 @@
 #include <QQuickWindow>
 #include <QSGRendererInterface>
 #include <QSurfaceFormat>
+#include <QFontDatabase>
 #include "src/appsettings.h"
 #include "src/memorymanager.h"
 #include "src/aiservice.h"
 #include "src/live2ditem.h"
 #include "src/notificationservice.h"
+#include "src/updatemanager.h"
 #include "src/localizationmanager.h"
 
 // ── Force discrete GPU on hybrid systems (NVIDIA Optimus / AMD PowerXpress) ──
@@ -32,8 +34,10 @@ int main(int argc, char *argv[])
     QSurfaceFormat::setDefaultFormat(format);
 
     QApplication app(argc, argv);
+    QFontDatabase::addApplicationFallbackFontFamily(QChar::Script_Hangul, "Noto Serif CJK KR");
     app.setApplicationName("RealAmadeus");
     app.setOrganizationName("RealAmadeus");
+    app.setApplicationVersion(REALAMADEUS_VERSION);
     app.setWindowIcon(QIcon(":/qt/qml/RealAmadeusPC/resources/images/amadeus_logo_v3.png"));
 
     // ─── Register C++ backend instances ───
@@ -41,6 +45,7 @@ int main(int argc, char *argv[])
     MemoryManager memory;
     AIService     aiService;
     NotificationService notificationService;
+    UpdateManager updateManager;
     LocalizationManager localization(&settings);
 
     QQmlApplicationEngine engine;
@@ -49,7 +54,9 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("MemoryManager",  &memory);
     engine.rootContext()->setContextProperty("AIService",      &aiService);
     engine.rootContext()->setContextProperty("NotificationService", &notificationService);
+    engine.rootContext()->setContextProperty("UpdateManager",  &updateManager);
     engine.rootContext()->setContextProperty("Localization",   &localization);
+    engine.rootContext()->setContextProperty("appDirPath",     QCoreApplication::applicationDirPath());
     qmlRegisterType<Live2DItem>("Amadeus.Live2D", 1, 0, "Live2DItem");
 
     QObject::connect(

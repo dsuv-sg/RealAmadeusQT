@@ -45,11 +45,19 @@
   "help_save_close": "Sauvegarder et fermer",
   "help_select_item": "Sélectionner",
   "help_confirm_advance": "Confirmer / Avancer",
+  "help_cancel_chat": "Annuler la conversation",
   "changelog_v12": "Ajout du support chinois, coréen, espagnol, français, allemand et russe.\nAjout du suivi du regard.\nImplémentation de la fonction de notifications de bureau.\nAjout du mode léger.\nAjout du changement de mode d'écran avec Alt+Entrée et F11.\nAjout des fournisseurs d'API Ollama et OpenRouter.\nCorrection de bugs UI.\nAmélioration de la sécurité pour les clés API.\nAmélioration des performances.",
   "changelog_v11": "Implémentation de la sélection par clic pour le menu.\nAjout du changement de langue entre japonais et anglais.\nAjout des boutons [Fermer/Annuler/Appliquer] à divers écrans.\nImplémentation des barres de défilement pour ChangeLog et BackLog.\nMise à jour de l'UI pour une meilleure visibilité.\nDébut de la publication de la version allégée.",
   "changelog_v101": "Correction d'un problème d'utilisation anormalement élevée du GPU.\nCorrection d'un problème de mise à l'échelle lors de la minimisation en plein écran.\nCorrection d'un problème empêchant la reconnexion après déconnexion.\nCorrection d'un bug faisant apparaître des tags d'émotion pour certains services AI.",
   "changelog_v10": "Sortie de la première version de Real Amadeus.\nComprend les fonctionnalités de conversation de base.",
   "login_user_id": "USER ID",
   "login_password": "PASSWORD",
-  "login_access_denied": "ACCESS DENIED"
+  "login_access_denied": "ACCESS DENIED",
+  "setting_openai_compatible": "Utiliser l'API compatible",
+  "setting_openai_base_url": "URL de base",
+  "setting_openai_base_url_example": "Exemple d'URL de base : https://api.example.com/v1",
+  "openai_compatible": "Compatible OpenAI",
+  "cancel_hint": "CTRL+C pour annuler",
+  "changelog_v13": "Implémentation de l'animation de somnolence Live2D.\nImplémentation du support de l'API compatible OpenAI et de l'URL de base personnalisée.\nUI ajustée.\nImplémentation de la fonction d'annulation pendant le chargement de l'API.\nImplémentation de la synchronisation labiale Live2D.\nCorrigé pour effectuer la mise à l'échelle en conservant le rapport d'aspect.\nCorrection des verrous dans le streaming de l'API.\nAmélioration de la sécurité en enregistrant les clés API chiffrées.\nImplémentation de la persistance des données RAG et optimisation des connexions VectorDatabase.\nAjout du support pour le portugais, l'ukrainien et le turc.\nModification du mode d'écran de démarrage par défaut en Mode Fenêtré pour éviter le clignotement de l'écran et les plantages au démarrage sur certaines configurations matérielles.\nImplémentation de vérifications automatiques des mises à jour au démarrage et d'un auto-updater.\nAmélioration de la division des phrases dans les langues autres que le japonais pour garantir que le dialogue se coupe correctement aux fins de phrases (points, etc.).",
+  "update_confirm": "La nouvelle version %1 est disponible.\nVoulez-vous mettre à jour ?"
 }

@@ -53,7 +53,10 @@ Item {
 
         Text {
             id: userIdLabel
-            text: t("login_user_id", "USER ID")
+            text: {
+                var trans = Localization.translations;
+                return t("login_user_id", "USER ID");
+            }
             font.family: mateFont.status === FontLoader.Ready ? mateFont.name : "sans-serif"
             font.pixelSize: 29 * sc
             font.bold: true
@@ -109,7 +112,10 @@ Item {
 
         Text {
             id: passwordLabel
-            text: t("login_password", "PASSWORD")
+            text: {
+                var trans = Localization.translations;
+                return t("login_password", "PASSWORD");
+            }
             font.family: mateFont.status === FontLoader.Ready ? mateFont.name : "sans-serif"
             font.pixelSize: 29 * sc
             font.bold: true
@@ -179,7 +185,10 @@ Item {
     Text {
         id: errorText
         visible: false
-        text: t("login_access_denied", "ACCESS DENIED")
+        text: {
+            var trans = Localization.translations;
+            return t("login_access_denied", "ACCESS DENIED");
+        }
         color: "#FF0000"
         font.family: mateFont.status === FontLoader.Ready ? mateFont.name : "sans-serif"
         font.pixelSize: 20 * sc

@@ -11,7 +11,7 @@ Item {
 
     property int configLanguage: AppSettings.getInt("Config_Language", 0)
 
-    FontLoader { id: notoKR; source: "file:///" + Qt.application.dirPath + "/resources/fonts/NotoSerifCJKkr-Regular.otf" }
+    FontLoader { id: notoKR; source: "file:///" + appDirPath + "/resources/fonts/NotoSerifCJKkr-Regular.otf" }
 
     function t(key, defaultValue) {
         var trans = Localization.translations;
@@ -24,7 +24,7 @@ Item {
 
     // ─── Mixed-font HTML generator (per-character script detection) ───
     // Hangul → Noto Serif, Cyrillic → MS Mincho + letterSpacing -6.4, Other → MS Mincho
-    function mixedTextHtml(text, pixelSize) {
+    function mixedTextHtml(text, pixelSize, tighterCyrillic) {
         if (!text) return "";
 
         function escapeHtml(str) {
@@ -58,6 +58,7 @@ Item {
             if (code >= 0xAC00 && code <= 0xD7AF) return "hangul";
             if (code >= 0x1100 && code <= 0x11FF) return "hangul";
             if (code >= 0x3130 && code <= 0x318F) return "hangul";
+            if (code === 0x0406 || code === 0x0456 || code === 0x0407 || code === 0x0457) return "cyrillic_i";
             if (code >= 0x0400 && code <= 0x04FF) return "cyrillic";
             return "other";
         }
@@ -72,7 +73,11 @@ Item {
                 var family = notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR";
                 html += '<span style="font-family: \'' + family + '\';">' + escapeHtml(currentText) + '</span>';
             } else if (currentType === "cyrillic") {
-                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: -8.4px;">' + escapeHtml(currentText) + '</span>';
+                var spacing = (tighterCyrillic && configLanguage === 8) ? "-12.0px" : "-7.0px";
+                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span>';
+            } else if (currentType === "cyrillic_i") {
+                var spacing = (tighterCyrillic && configLanguage === 8) ? "-5.0px" : "-2.0px";
+                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span>';
             } else {
                 html += '<span style="font-family: \'MS Mincho\';">' + escapeHtml(currentText) + '</span>';
             }
@@ -158,10 +163,44 @@ Item {
                 Text { text: mixedTextHtml(desc, 28); color: "#E6E6E6"; font.pixelSize: 28; textFormat: Text.RichText }
             }
 
-            HelpEntry { title: "Tab / " + t("help_right_click", "右クリック"); desc: t("help_toggle_menu", "メニュー開閉") }
-            HelpEntry { title: "Backspace"; desc: t("help_save_close", "保存して閉じる") }
-            HelpEntry { title: "WASD / ↑←↓→"; desc: t("help_select_item", "項目選択") }
-            HelpEntry { title: "Enter"; desc: t("help_confirm_advance", "決定 / 会話を進める") }
+            HelpEntry {
+                title: {
+                    var trans = Localization.translations;
+                    return "Tab / " + t("help_right_click", "右クリック");
+                }
+                desc: {
+                    var trans = Localization.translations;
+                    return t("help_toggle_menu", "メニュー開閉");
+                }
+            }
+            HelpEntry {
+                title: "Backspace"
+                desc: {
+                    var trans = Localization.translations;
+                    return t("help_save_close", "保存して閉じる");
+                }
+            }
+            HelpEntry {
+                title: "WASD / ↑←↓→"
+                desc: {
+                    var trans = Localization.translations;
+                    return t("help_select_item", "項目選択");
+                }
+            }
+            HelpEntry {
+                title: "Enter"
+                desc: {
+                    var trans = Localization.translations;
+                    return t("help_confirm_advance", "決定 / 会話を進める");
+                }
+            }
+            HelpEntry {
+                title: "Ctrl+C"
+                desc: {
+                    var trans = Localization.translations;
+                    return t("help_cancel_chat", "会話をキャンセル");
+                }
+            }
         }
     }
 
@@ -172,7 +211,10 @@ Item {
         anchors { right: parent.right; rightMargin: 100; bottom: parent.bottom; bottomMargin: 60 }
         Text {
             anchors.centerIn: parent
-            text: mixedTextHtml(t("close", "閉じる"), 32)
+            text: {
+                var trans = Localization.translations;
+                return mixedTextHtml(t("close", "閉じる"), 32, true);
+            }
             color: "#FFFFFF"
             font.pixelSize: 32
             textFormat: Text.RichText

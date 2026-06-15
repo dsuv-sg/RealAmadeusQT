@@ -18,16 +18,15 @@ if not defined VS_INSTALL (
 
 call "%VS_INSTALL%\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
 
-set BUILD_DIR=build\Desktop_Qt_6_10_1_MSVC2022_64bit-Release
+set BUILD_DIR=build\Desktop_Qt_6_10_1_MSVC2022_64bit-Debug
 
 if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
 
 cmake -S . -B "%BUILD_DIR%" ^
     -G Ninja ^
-    -DCMAKE_BUILD_TYPE=Release ^
+    -DCMAKE_BUILD_TYPE=Debug ^
     -DCMAKE_PREFIX_PATH=C:\Qt\6.10.1\msvc2022_64 ^
     -DCMAKE_CXX_FLAGS="/Zm2000" ^
-    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ^
-    %* || exit /b 1
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 || exit /b 1
 
 cmake --build "%BUILD_DIR%" %*

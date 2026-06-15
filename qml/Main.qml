@@ -13,8 +13,8 @@ ApplicationWindow {
     title: "Amadeus System"
     color: "#000000"
 
-    // Apply saved screen mode on startup
-    visibility: AppSettings.getInt("Config_ScreenMode", 0) === 0 ? Window.FullScreen : Window.Windowed
+    // Apply saved screen mode on startup (Default to Windowed (1) for compatibility)
+    visibility: AppSettings.getInt("Config_ScreenMode", 1) === 0 ? Window.FullScreen : Window.Windowed
 
     function centerWindow() {
         if (mainWindow.visibility !== Window.Windowed) return;
@@ -44,7 +44,7 @@ ApplicationWindow {
     }
 
     function applyScreenSettings() {
-        var screenMode = AppSettings.getInt("Config_ScreenMode", 0);
+        var screenMode = AppSettings.getInt("Config_ScreenMode", 1);
         // 0 = Fullscreen, 1 = Windowed
         if (screenMode === 0) {
             mainWindow.visibility = Window.FullScreen;
@@ -101,8 +101,23 @@ ApplicationWindow {
         }
     }
 
+    Connections {
+        target: UpdateManager
+        function onUpdateCheckFinished(success, hasUpdate) {
+            if (success && hasUpdate) {
+                updateDialog.dialogMessage = mainWindow.getUpdateMessage(UpdateManager.latestVersion);
+                updateDialog.visible = true;
+            }
+        }
+    }
+
+    function getUpdateMessage(version) {
+        return Localization.t("update_confirm", "New version %1 is available.\nDo you want to update?").arg(version);
+    }
+
     Component.onCompleted: {
         applyScreenSettings();
+        UpdateManager.checkForUpdate();
     }
 
     // ─── Key handling ───
@@ -163,6 +178,20 @@ ApplicationWindow {
             origin.y: 540
             xScale: Math.min(mainWindow.width / 1920.0, mainWindow.height / 1080.0)
             yScale: xScale
+        }
+
+        // ─── Update Dialog ───
+        ConfirmationDialog {
+            id: updateDialog
+            z: 110
+            visible: false
+            onConfirmed: {
+                UpdateManager.startUpdate(mainWindow.configLanguage);
+                visible = false;
+            }
+            onCancelled: {
+                visible = false;
+            }
         }
 
         // ─── BackLog Panel (Shared) ───

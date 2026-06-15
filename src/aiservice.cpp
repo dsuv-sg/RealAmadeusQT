@@ -473,7 +473,23 @@ void AIService::sendChat(const QVariantList &messages)
     switch (provider) {
     case PROVIDER_OPENAI: {
         if (model.isEmpty()) model = "gpt-4o";
-        req.setUrl(QUrl(customUrl.isEmpty() ? "https://api.openai.com/v1/chat/completions" : customUrl));
+        QString urlStr;
+        bool isCompatible = false;
+        QString baseUrlSetting;
+        {
+            QMutexLocker locker(&m_settingsMutex);
+            isCompatible = m_settings.value("Config_OpenAICompatible", 0).toInt() == 1;
+            baseUrlSetting = m_settings.value("Config_OpenAIBaseUrl", "").toString().trimmed();
+        }
+        if (isCompatible && !baseUrlSetting.isEmpty()) {
+            if (baseUrlSetting.endsWith("/")) {
+                baseUrlSetting.chop(1);
+            }
+            urlStr = baseUrlSetting + "/chat/completions";
+        } else {
+            urlStr = customUrl.isEmpty() ? "https://api.openai.com/v1/chat/completions" : customUrl;
+        }
+        req.setUrl(QUrl(urlStr));
         req.setRawHeader("Authorization", ("Bearer " + apiKey).toUtf8());
         req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
         body = buildOpenAIBody(messages, model);

@@ -6,6 +6,8 @@
 #include <QUuid>
 #include <QNetworkRequest>
 #include <cmath>
+#include <QtConcurrent>
+#include <QMutexLocker>
 
 VectorDatabase::VectorDatabase(QObject *parent)
     : QObject(parent)
@@ -131,7 +133,10 @@ void VectorDatabase::addEntry(const QString &content, const QString &category,
         entry.embedding = embedding;
         entry.metadata = metadata;
         
-        m_entries[id] = entry;
+        {
+            QMutexLocker locker(&m_mutex);
+            m_entries[id] = entry;
+        }
         save();
         
         emit entryAdded(id);
@@ -153,45 +158,61 @@ void VectorDatabase::search(const QString &query)
             return;
         }
         
-        // Calculate similarities
-        QList<QPair<QString, qreal>> similarities;
+        QMap<QString, VectorEntry> entriesCopy;
+        {
+            QMutexLocker locker(&m_mutex);
+            entriesCopy = m_entries;
+        }
         
-        for (auto it = m_entries.constBegin(); it != m_entries.constEnd(); ++it) {
-            qreal sim = cosineSimilarity(queryEmbedding, it.value().embedding);
-            if (sim >= m_threshold) {
-                similarities.append(qMakePair(it.key(), sim));
+        int topK = m_topK;
+        qreal threshold = m_threshold;
+        
+        QtConcurrent::run([this, queryEmbedding, entriesCopy, topK, threshold]() {
+            // Calculate similarities
+            QList<QPair<QString, qreal>> similarities;
+            
+            for (auto it = entriesCopy.constBegin(); it != entriesCopy.constEnd(); ++it) {
+                qreal sim = cosineSimilarity(queryEmbedding, it.value().embedding);
+                if (sim >= threshold) {
+                    similarities.append(qMakePair(it.key(), sim));
+                }
             }
-        }
-        
-        // Sort by similarity (descending)
-        std::sort(similarities.begin(), similarities.end(),
-                  [](const auto &a, const auto &b) { return a.second > b.second; });
-        
-        // Take top K results
-        QVariantList results;
-        int count = qMin(m_topK, similarities.size());
-        
-        for (int i = 0; i < count; ++i) {
-            const QString &id = similarities[i].first;
-            const VectorEntry &entry = m_entries[id];
             
-            QVariantMap result;
-            result["id"] = id;
-            result["content"] = entry.content;
-            result["category"] = entry.category;
-            result["similarity"] = similarities[i].second;
-            result["metadata"] = entry.metadata.toVariantMap();
+            // Sort by similarity (descending)
+            std::sort(similarities.begin(), similarities.end(),
+                      [](const auto &a, const auto &b) { return a.second > b.second; });
             
-            results.append(result);
-        }
-        
-        emit searchComplete(results);
+            // Take top K results
+            QVariantList results;
+            int count = qMin(topK, similarities.size());
+            
+            for (int i = 0; i < count; ++i) {
+                const QString &id = similarities[i].first;
+                const VectorEntry &entry = entriesCopy[id];
+                
+                QVariantMap result;
+                result["id"] = id;
+                result["content"] = entry.content;
+                result["category"] = entry.category;
+                result["similarity"] = similarities[i].second;
+                result["metadata"] = entry.metadata.toVariantMap();
+                
+                results.append(result);
+            }
+            
+            emit searchComplete(results);
+        });
     });
 }
 
 void VectorDatabase::removeEntry(const QString &id)
 {
-    if (m_entries.remove(id) > 0) {
+    bool removed = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        removed = (m_entries.remove(id) > 0);
+    }
+    if (removed) {
         save();
         qDebug() << "[VectorDatabase] Entry removed:" << id;
     }
@@ -199,13 +220,17 @@ void VectorDatabase::removeEntry(const QString &id)
 
 void VectorDatabase::clearAll()
 {
-    m_entries.clear();
+    {
+        QMutexLocker locker(&m_mutex);
+        m_entries.clear();
+    }
     save();
     qDebug() << "[VectorDatabase] All entries cleared";
 }
 
 int VectorDatabase::entryCount() const
 {
+    QMutexLocker locker(&m_mutex);
     return m_entries.size();
 }
 
@@ -225,23 +250,26 @@ void VectorDatabase::save()
 {
     QJsonArray entriesArray;
     
-    for (auto it = m_entries.constBegin(); it != m_entries.constEnd(); ++it) {
-        const VectorEntry &entry = it.value();
-        
-        QJsonObject obj;
-        obj["id"] = entry.id;
-        obj["content"] = entry.content;
-        obj["category"] = entry.category;
-        obj["metadata"] = entry.metadata;
-        
-        // Store embedding as array
-        QJsonArray embeddingArray;
-        for (float val : entry.embedding) {
-            embeddingArray.append(static_cast<double>(val));
+    {
+        QMutexLocker locker(&m_mutex);
+        for (auto it = m_entries.constBegin(); it != m_entries.constEnd(); ++it) {
+            const VectorEntry &entry = it.value();
+            
+            QJsonObject obj;
+            obj["id"] = entry.id;
+            obj["content"] = entry.content;
+            obj["category"] = entry.category;
+            obj["metadata"] = entry.metadata;
+            
+            // Store embedding as array
+            QJsonArray embeddingArray;
+            for (float val : entry.embedding) {
+                embeddingArray.append(static_cast<double>(val));
+            }
+            obj["embedding"] = embeddingArray;
+            
+            entriesArray.append(obj);
         }
-        obj["embedding"] = embeddingArray;
-        
-        entriesArray.append(obj);
     }
     
     QJsonObject root;
@@ -254,7 +282,7 @@ void VectorDatabase::save()
     if (file.open(QIODevice::WriteOnly)) {
         file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
         file.close();
-        qDebug() << "[VectorDatabase] Saved" << m_entries.size() << "entries";
+        qDebug() << "[VectorDatabase] Saved" << entriesArray.size() << "entries";
     } else {
         qWarning() << "[VectorDatabase] Failed to save:" << path;
     }
@@ -286,7 +314,7 @@ void VectorDatabase::load()
     QJsonObject root = doc.object();
     QJsonArray entriesArray = root["entries"].toArray();
     
-    m_entries.clear();
+    QMap<QString, VectorEntry> loadedEntries;
     
     for (const QJsonValue &val : entriesArray) {
         QJsonObject obj = val.toObject();
@@ -303,11 +331,16 @@ void VectorDatabase::load()
         }
         
         if (!entry.id.isEmpty() && !entry.embedding.isEmpty()) {
-            m_entries[entry.id] = entry;
+            loadedEntries[entry.id] = entry;
         }
     }
     
-    qDebug() << "[VectorDatabase] Loaded" << m_entries.size() << "entries";
+    {
+        QMutexLocker locker(&m_mutex);
+        m_entries = loadedEntries;
+    }
+    
+    qDebug() << "[VectorDatabase] Loaded" << loadedEntries.size() << "entries";
 }
 
 QString VectorDatabase::getContextForPrompt(const QList<SearchResult> &results) const

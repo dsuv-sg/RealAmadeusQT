@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(RealAmadeusPC VERSION 0.1 LANGUAGES CXX)
+project(RealAmadeusPC VERSION 1.3.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -32,6 +32,8 @@ qt_add_executable(appRealAmadeusPC
     main.cpp
     src/appsettings.cpp
     src/appsettings.h
+    src/updatemanager.cpp
+    src/updatemanager.h
     src/memorymanager.cpp
     src/memorymanager.h
     src/aiservice.cpp
@@ -107,6 +109,9 @@ qt_add_qml_module(appRealAmadeusPC
         resources/locales/fr.json
         resources/locales/de.json
         resources/locales/ru.json
+        resources/locales/uk.json
+        resources/locales/pt.json
+        resources/locales/tr.json
 )
 
 target_include_directories(appRealAmadeusPC PRIVATE src)
@@ -119,6 +124,7 @@ target_include_directories(appRealAmadeusPC PRIVATE
 target_compile_definitions(appRealAmadeusPC PRIVATE
     GLEW_STATIC
     REALAMADEUS_PROJECT_ROOT="${CMAKE_CURRENT_SOURCE_DIR}"
+    REALAMADEUS_VERSION="${PROJECT_VERSION}"
 )
 
 set(CUBISM_CORE_IMPORT_LIB "")

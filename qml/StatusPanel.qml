@@ -13,7 +13,7 @@ Item {
     property real   llmLatency: -1
     property bool   isLoggedIn: false
     property int    configLanguage: AppSettings.getInt("Config_Language", 0)
-    FontLoader { id: notoKR; source: "file:///" + Qt.application.dirPath + "/resources/fonts/NotoSerifCJKkr-Regular.otf" }
+    FontLoader { id: notoKR; source: "file:///" + appDirPath + "/resources/fonts/NotoSerifCJKkr-Regular.otf" }
 
     function t(key, defaultValue) {
         var trans = Localization.translations;
@@ -24,7 +24,7 @@ Item {
     }
 
 
-    function mixedTextHtml(text, pixelSize) {
+    function mixedTextHtml(text, pixelSize, tighterCyrillic) {
         if (!text) return "";
 
         function escapeHtml(str) {
@@ -59,6 +59,7 @@ Item {
             if (code >= 0xAC00 && code <= 0xD7AF) return "hangul";
             if (code >= 0x1100 && code <= 0x11FF) return "hangul";
             if (code >= 0x3130 && code <= 0x318F) return "hangul";
+            if (code === 0x0406 || code === 0x0456 || code === 0x0407 || code === 0x0457) return "cyrillic_i";
             if (code >= 0x0400 && code <= 0x04FF) return "cyrillic";
             return "other";
         }
@@ -73,7 +74,11 @@ Item {
                 var family = notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR";
                 html += '<span style="font-family: \'' + family + '\';">' + escapeHtml(currentText) + '</span>';
             } else if (currentType === "cyrillic") {
-                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: -8.4px;">' + escapeHtml(currentText) + '</span>';
+                var spacing = (tighterCyrillic && configLanguage === 8) ? "-12.0px" : "-7.0px";
+                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span>';
+            } else if (currentType === "cyrillic_i") {
+                var spacing = (tighterCyrillic && configLanguage === 8) ? "-5.0px" : "-2.0px";
+                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span>';
             } else {
                 html += '<span style="font-family: \'MS Mincho\';">' + escapeHtml(currentText) + '</span>';
             }
@@ -171,7 +176,7 @@ Item {
             spacing: 65
 
             // Row_SYSTEM_VERSION (HLG spacing=20, label minWidth=250, value flex=1)
-            StatusRow { label: "SYSTEM_VERSION"; value: "Real Amadeus v1.2Q(Build 20260504_001)" }
+            StatusRow { label: "SYSTEM_VERSION"; value: "Real Amadeus v1.3Q(Build 20260616_001)" }
             // Row_LIVE2D_MODEL
             StatusRow { label: "LIVE2D_MODEL"; value: "Live2DKurisu v1.0" }
             // Row_OPERATOR
@@ -211,7 +216,7 @@ Item {
     Text {
         anchors { left: parent.left; leftMargin: 50; bottom: parent.bottom; bottomMargin: 10 }
         width: 1820
-        text: "Provided by ELVELT/Real Amadeus Project\nDeveloped by DSUV\nDesigned by DSUV/Amane\nThis project is a derivative work of Steins;Gate 0\nVersion 1.2Q(Build 20260504_001)"
+        text: "Provided by ELVELT/Real Amadeus Project\nDeveloped by DSUV\nDesigned by DSUV/Amane\nTranslated with assistance by Dezpot\nThis project is a derivative work of Steins;Gate 0\nVersion 1.3Q(Build 20260616_001)"
         color: "#808080"
         font { family: "MS Mincho"; pixelSize: 24 }
         horizontalAlignment: Text.AlignLeft
@@ -264,7 +269,10 @@ Item {
         anchors { right: parent.right; rightMargin: 100; bottom: parent.bottom; bottomMargin: 60 }
         Text {
             anchors.centerIn: parent
-            text: mixedTextHtml(t("close", "閉じる"), font.pixelSize)
+            text: {
+                var trans = Localization.translations;
+                return mixedTextHtml(t("close", "閉じる"), font.pixelSize, true);
+            }
             color: "#FFFFFF"
             textFormat: Text.RichText
             font.pixelSize: 32

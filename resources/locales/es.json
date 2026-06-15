@@ -45,11 +45,20 @@
   "help_save_close": "Guardar y cerrar",
   "help_select_item": "Seleccionar elemento",
   "help_confirm_advance": "Confirmar / Avanzar",
+  "help_cancel_chat": "Cancelar conversación",
   "changelog_v12": "Se agregó soporte para chino, coreano, español, francés, alemán y ruso.\nSe agregó seguimiento ocular.\nSe implementó la función de notificaciones de escritorio.\nSe agregó modo ligero.\nSe implementó cambio de modo de pantalla con Alt+Enter y F11.\nSe agregaron los proveedores de API Ollama y OpenRouter.\nSe corrigieron errores de UI.\nSe mejoró la seguridad de las claves API.\nSe mejoró el rendimiento.",
   "changelog_v11": "Se implementó la selección por clic en la pantalla de menú.\nSe agregó cambio de idioma entre japonés e inglés.\nSe agregaron botones [Cerrar/Cancelar/Aplicar] a varias pantallas.\nSe implementaron barras de desplazamiento para ChangeLog y BackLog.\nSe actualizaron elementos de UI para mejor visibilidad.\nSe inició el lanzamiento de la versión ligera.",
   "changelog_v101": "Se corrigió un problema de uso anormalmente alto de GPU.\nSe corrigió un problema de escala de ventana al minimizar en pantalla completa.\nSe corrigió un problema donde re-iniciar sesión tras cerrarla era imposible.\nSe corrigió un error donde aparecían etiquetas de emoción en algunos servicios de AI.",
   "changelog_v10": "Se lanzó la primera versión de Real Amadeus.\nIncluye funciones básicas de conversación.",
   "login_user_id": "USER ID",
   "login_password": "PASSWORD",
-  "login_access_denied": "ACCESS DENIED"
+  "login_access_denied": "ACCESS DENIED",
+  "setting_openai_compatible": "Usar API compatible",
+  "setting_openai_base_url": "URL base",
+  "setting_openai_base_url_example": "Ejemplo de URL base: https://api.example.com/v1",
+  "openai_compatible": "OpenAI compatible",
+  "cancel_hint": "CTRL+C para cancelar",
+  "sleeping_placeholder": "Zzz... (Presione una tecla o mueva el mouse para despertar)",
+  "changelog_v13": "Se implementó la animación de cabezadas Live2D.\nSe implementó el soporte para API compatible con OpenAI y URL base personalizada.\nSe ajustó la UI.\nSe implementó la función de cancelación durante la carga de API.\nSe implementó la sincronización de labios Live2D.\nSe corrigió para realizar el escalado manteniendo la relación de aspecto.\nSe corrigieron bloqueos mutuos en la transmisión de API.\nSe mejoró la seguridad guardando las claves API cifradas.\nSe implementó la persistencia de datos RAG y optimización de conexiones de VectorDatabase.\nSe agregó soporte para portugués, ucraniano y turco.\nSe cambió el modo de pantalla de inicio predeterminado a Modo Ventana para evitar el parpadeo de la pantalla y fallos de inicio en ciertas configuraciones de hardware.\nSe implementó la comprobación automática de actualizaciones al iniciar y un actualizador automático.\nSe mejoró la división de oraciones en idiomas distintos del japonés para garantizar que el diálogo se divida correctamente al final de las oraciones (puntos, etc.).",
+  "update_confirm": "Nueva versión %1 disponible.\n¿Desea actualizar?"
 }

@@ -27,15 +27,12 @@ Item {
     property int originalLang: 0
     property bool suppressLanguageCommit: true
 
-    readonly property string _fontFamily: {
-        if (lang === 3 && notoKR.status === FontLoader.Ready) return notoKR.name;
-        return "MS Mincho";
-    }
+    readonly property string _fontFamily: "MS Mincho"
 
     // Hybrid font rendering
     // Korean: Hangul → Noto Serif, other → MS Mincho
     // Russian: Cyrillic → MS Mincho + letter-spacing -8.4, other → MS Mincho
-    function styledText(text) {
+    function styledText(text, tighterCyrillic) {
         if (!text) return "";
 
         function escapeHtml(str) {
@@ -51,14 +48,20 @@ Item {
                    (code >= 0x3130 && code <= 0x318F);
         }
 
+        function isCyrillicI(c) {
+            var code = c.charCodeAt(0);
+            return (code === 0x0406 || code === 0x0456 || code === 0x0407 || code === 0x0457);
+        }
+
         function isCyrillic(c) {
             var code = c.charCodeAt(0);
-            return (code >= 0x0400 && code <= 0x04FF);
+            return (code >= 0x0400 && code <= 0x04FF && !isCyrillicI(c));
         }
 
         var result = "";
         var hangulRun = "";
         var cyrillicRun = "";
+        var cyrillicIRun = "";
         var otherRun = "";
         var krFace = notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR";
 
@@ -69,8 +72,15 @@ Item {
         }
         function flushCyrillic() {
             if (cyrillicRun.length === 0) return;
-            result += '<span style="letter-spacing: -8.4px;">' + escapeHtml(cyrillicRun) + '</span>';
+            var spacing = (tighterCyrillic && lang === 8) ? "-12.0px" : "-7.0px";
+            result += '<span style="letter-spacing: ' + spacing + ';">' + escapeHtml(cyrillicRun) + '</span>';
             cyrillicRun = "";
+        }
+        function flushCyrillicI() {
+            if (cyrillicIRun.length === 0) return;
+            var spacing = (tighterCyrillic && lang === 8) ? "-5.0px" : "-2.0px";
+            result += '<span style="letter-spacing: ' + spacing + ';">' + escapeHtml(cyrillicIRun) + '</span>';
+            cyrillicIRun = "";
         }
         function flushOther() {
             if (otherRun.length === 0) return;
@@ -82,20 +92,29 @@ Item {
             var c = text[i];
             if (lang === 3 && isHangul(c)) {
                 flushCyrillic();
+                flushCyrillicI();
                 flushOther();
                 hangulRun += c;
-            } else if (lang === 7 && isCyrillic(c)) {
+            } else if ((lang === 7 || lang === 8) && isCyrillic(c)) {
                 flushHangul();
+                flushCyrillicI();
                 flushOther();
                 cyrillicRun += c;
+            } else if ((lang === 7 || lang === 8) && isCyrillicI(c)) {
+                flushHangul();
+                flushCyrillic();
+                flushOther();
+                cyrillicIRun += c;
             } else {
                 flushHangul();
                 flushCyrillic();
+                flushCyrillicI();
                 otherRun += c;
             }
         }
         flushHangul();
         flushCyrillic();
+        flushCyrillicI();
         flushOther();
 
         return result;
@@ -172,15 +191,14 @@ Item {
     }
 
     onLangChanged: {
-        rebuildLocalizedArrays();
         if (visible) {
-            // Force Repeater delegate recreation by temporarily clearing model
+            // Force Repeater delegate recreation by temporarily clearing model to apply new font settings
             sidebarRepeater.model = null;
             sidebarRepeater.model = root.categoryNames;
         }
     }
 
-    FontLoader { id: notoKR; source: "file:///" + Qt.application.dirPath + "/resources/fonts/NotoSerifCJKkr-Regular.otf" }
+    FontLoader { id: notoKR; source: "file:///" + appDirPath + "/resources/fonts/NotoSerifCJKkr-Regular.otf" }
 
     function t(key, defaultValue) {
         var trans = Localization.translations;
@@ -201,7 +219,10 @@ Item {
         "Español",
         "Français",
         "Deutsch",
-        "Русский"
+        "Русский",
+        "Українська",
+        "Português",
+        "Türkçe"
     ]
 
     Component.onCompleted: {
@@ -221,6 +242,17 @@ Item {
                     languageCombo.currentIndex = newLang;
                     root.suppressLanguageCommit = false;
                 }
+            }
+        }
+    }
+
+    Connections {
+        target: Localization
+        function onTranslationsChanged() {
+            rebuildLocalizedArrays();
+            if (visible) {
+                sidebarRepeater.model = null;
+                sidebarRepeater.model = root.categoryNames;
             }
         }
     }
@@ -259,13 +291,15 @@ Item {
         bgmVolRow.sliderValue      = AppSettings.getFloat("Config_BGMVol", 0.8);
         seVolRow.sliderValue       = AppSettings.getFloat("Config_SEVol", 1.0);
         voiceVolRow.sliderValue    = AppSettings.getFloat("Config_VoiceVol", 1.0);
-        screenModeCombo.currentIndex = AppSettings.getInt("Config_ScreenMode", 0);
+        screenModeCombo.currentIndex = AppSettings.getInt("Config_ScreenMode", 1);
         resolutionCombo.currentIndex = AppSettings.getInt("Config_Resolution", 0);
         webSearchToggle.checked    = AppSettings.getInt("Config_WebSearch", 0) === 1;
         providerCombo.currentIndex = currentProviderIndex;
         vertexProjectField.text    = AppSettings.getString("Config_VertexProject", "");
         vertexLocationField.text   = AppSettings.getString("Config_VertexLocation", "us-central1");
         ollamaHostField.text       = AppSettings.getString("Config_OllamaHost", "http://localhost:11434");
+        openaiCompatibleToggle.checked = AppSettings.getInt("Config_OpenAICompatible", 0) === 1;
+        openaiBaseUrlField.text    = AppSettings.getString("Config_OpenAIBaseUrl", "");
         root.suppressLanguageCommit = false;
     }
 
@@ -296,6 +330,8 @@ Item {
         AppSettings.setString("Config_VertexProject",  vertexProjectField.text);
         AppSettings.setString("Config_VertexLocation", vertexLocationField.text);
         AppSettings.setString("Config_OllamaHost",     ollamaHostField.text || "http://localhost:11434");
+        AppSettings.setInt("Config_OpenAICompatible",   openaiCompatibleToggle.checked ? 1 : 0);
+        AppSettings.setString("Config_OpenAIBaseUrl",   openaiBaseUrlField.text);
 
         for (var i = 0; i < providerNames.length; i++) {
             AppSettings.setString("Config_ApiKey_"   + i, apiKeyBuffer[i] || "");
@@ -493,6 +529,27 @@ Item {
                         spacing: 0
                         ConfigRow { label: t("setting_api_provider", "LLM APIプロバイダ"); ConfigComboBox { id: providerCombo; model: root.providerNames; popupMaxHeight: 500; onCurrentIndexChanged: root.onProviderChanged(currentIndex) } }
                         ConfigRow { label: t("setting_api_key", "APIキー"); visible: providerCombo.currentIndex !== 4 && providerCombo.currentIndex !== 5; ConfigTextField { id: apiKeyField; echoMode: TextField.Password } }
+                        ConfigRow {
+                            label: t("setting_openai_compatible", "互換APIを使う")
+                            visible: providerCombo.currentIndex === 0
+                            ConfigCheckBox { id: openaiCompatibleToggle }
+                        }
+                        ConfigRow {
+                            label: t("setting_openai_base_url", "ベースURL")
+                            visible: providerCombo.currentIndex === 0 && openaiCompatibleToggle.checked
+                            ConfigTextField { id: openaiBaseUrlField }
+                        }
+                        Text {
+                            visible: providerCombo.currentIndex === 0 && openaiCompatibleToggle.checked
+                            Layout.leftMargin: 400
+                            Layout.preferredHeight: 30
+                            Layout.fillWidth: true
+                            text: styledText(t("setting_openai_base_url_example", "ベースURLの例: https://api.example.com/v1"))
+                            textFormat: Text.StyledText
+                            color: "#FFFFFF"
+                            font { family: root._fontFamily; pixelSize: 20 }
+                            verticalAlignment: Text.AlignTop
+                        }
                         ConfigRow { label: t("setting_model_name", "LLM モデル名"); ConfigTextField { id: modelNameField } }
                         ConfigRow { label: t("setting_web_search", "LLM Web検索"); ConfigCheckBox { id: webSearchToggle } }
                         ConfigRow { label: t("setting_vertex_project", "Vertex Project ID"); visible: providerCombo.currentIndex === 4; ConfigTextField { id: vertexProjectField } }
@@ -528,14 +585,21 @@ Item {
             Text {
                 id: cancelBtnText
                 anchors.centerIn: parent
-                text: styledText(t("cancel", "キャンセル"))
+                text: styledText(t("cancel", "キャンセル"), true)
                 textFormat: Text.RichText
                 color: "#FFFFFF"
                 font { family: root._fontFamily; pixelSize: 32 }
             }
             MouseArea {
                 anchors.fill: parent
-                onClicked: { root.loadSettings(); root.closed(); }
+                onClicked: {
+                    if (AppSettings.getInt("Config_Language", 0) !== root.originalLang) {
+                        AppSettings.setInt("Config_Language", root.originalLang);
+                        AppSettings.save();
+                    }
+                    root.loadSettings();
+                    root.closed();
+                }
             }
         }
 
@@ -545,7 +609,7 @@ Item {
             Text {
                 id: applyBtnText
                 anchors.centerIn: parent
-                text: styledText(t("apply", "適用"))
+                text: styledText(t("apply", "適用"), true)
                 textFormat: Text.RichText
                 color: "#FFFFFF"
                 font { family: root._fontFamily; pixelSize: 32 }
@@ -595,22 +659,19 @@ Item {
         default property alias content: holder.data
         Layout.preferredHeight: 100
         Layout.fillWidth: true
-        spacing: 300
+        spacing: 0
         Text {
             id: rowLabelText
             text: styledText(label)
             textFormat: Text.RichText
             color: "#FFFFFF"
             font { family: root._fontFamily; pixelSize: 24 }
-            Layout.preferredWidth: 100
-            Layout.minimumWidth: 100
+            wrapMode: Text.Wrap
+            rightPadding: 30
+            Layout.preferredWidth: 400
+            Layout.minimumWidth: 400
+            Layout.maximumWidth: 400
             Layout.alignment: Qt.AlignVCenter
-            Connections {
-                target: root
-                function onLangChanged() {
-                    rowLabelText.text = styledText(label);
-                }
-            }
         }
         Item {
             id: holder
@@ -659,24 +720,21 @@ Item {
 
         Layout.preferredHeight: 100
         Layout.fillWidth: true
-        spacing: 300
+        spacing: 0
 
-        // Label (width=100, same as Unity RectTransform)
+        // Label (width=400, text wraps within 370, 30px padding/gap)
         Text {
             id: sliderRowLabelText
             text: styledText(label)
             textFormat: Text.RichText
             color: "#FFFFFF"
             font { family: root._fontFamily; pixelSize: 24 }
-            Layout.preferredWidth: 100
-            Layout.minimumWidth: 100
+            wrapMode: Text.Wrap
+            rightPadding: 30
+            Layout.preferredWidth: 400
+            Layout.minimumWidth: 400
+            Layout.maximumWidth: 400
             Layout.alignment: Qt.AlignVCenter
-            Connections {
-                target: root
-                function onLangChanged() {
-                    sliderRowLabelText.text = styledText(label);
-                }
-            }
         }
 
         // Custom-rendered slider (300×20)
@@ -722,6 +780,11 @@ Item {
             }
         }
 
+        // Spacer to maintain the 300px gap before value display
+        Item {
+            Layout.preferredWidth: 300
+        }
+
         // Value display (80×40, 36px white)
         Text {
             Layout.preferredWidth: 80
@@ -739,7 +802,7 @@ Item {
     component ConfigComboBox: ComboBox {
         id: comboRoot
         implicitWidth: 400; implicitHeight: 50
-        property int popupMaxHeight: 400
+        property int popupMaxHeight: 550
         focusPolicy: Qt.NoFocus
         activeFocusOnTab: false
 

@@ -16,6 +16,7 @@ Item {
     property bool autoMode: false
     property real autoSpeed: 3.0
     property int configLanguage: AppSettings.getInt("Config_Language", 0)
+    readonly property string _fontFamily: "MS Mincho"
     property var  backLog: null
     property bool menuPanelOpen: false
 
@@ -108,7 +109,7 @@ Item {
     // ─── Network request start time ───
     property real requestStartTime: 0
 
-    FontLoader { id: notoKR; source: "file:///" + Qt.application.dirPath + "/resources/fonts/NotoSerifCJKkr-Regular.otf" }
+    FontLoader { id: notoKR; source: "file:///" + appDirPath + "/resources/fonts/NotoSerifCJKkr-Regular.otf" }
 
     function t(key, defaultValue) {
         var trans = Localization.translations;
@@ -156,6 +157,7 @@ Item {
             if (code >= 0xAC00 && code <= 0xD7AF) return "hangul";
             if (code >= 0x1100 && code <= 0x11FF) return "hangul";
             if (code >= 0x3130 && code <= 0x318F) return "hangul";
+            if (code === 0x0406 || code === 0x0456 || code === 0x0407 || code === 0x0457) return "cyrillic_i";
             if (code >= 0x0400 && code <= 0x04FF) return "cyrillic";
             return "other";
         }
@@ -170,7 +172,11 @@ Item {
                 var family = notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR";
                 html += '<span style="font-family: \'' + family + '\';">' + escapeHtml(currentText) + '</span>';
             } else if (currentType === "cyrillic") {
-                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: -8.4px;">' + escapeHtml(currentText) + '</span>';
+                var spacing = (root.configLanguage === 8) ? "-12.0px" : "-8.0px";
+                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span>';
+            } else if (currentType === "cyrillic_i") {
+                var spacing = (root.configLanguage === 8) ? "-7.0px" : "-5.0px";
+                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span>';
             } else {
                 html += '<span style="font-family: \'MS Mincho\';">' + escapeHtml(currentText) + '</span>';
             }
@@ -434,6 +440,14 @@ Item {
     }
 
     function isPauseCharacter(c, nextC) {
+        if (c === ".") {
+            if (nextC === ".")
+                return false;
+            if (nextC === " " || nextC === "\n" || nextC === "\r" || nextC === "")
+                return true;
+            return false;
+        }
+
         var pause = (c === "\u3002" || c === "\uff01" || c === "\uff1f" || c === "!" || c === "?" || c === "\n");
         if (!pause)
             return false;
@@ -478,10 +492,14 @@ Item {
         refresh(root);
     }
 
-    onConfigLanguageChanged: {
-        var name = t("amadeus_kurisu", "アマデウス紅莉栖");
-        nameText.text = mixedTextHtml(name, 36);
-        Qt.callLater(forceTextRefresh);
+    Connections {
+        target: Localization
+        function onTranslationsChanged() {
+            var name = t("amadeus_kurisu", "アマデウス紅莉栖");
+            nameText.text = mixedTextHtml(name, 36);
+            cancelHintText.text = mixedTextHtml(t("cancel_hint", "CTRL+Cでキャンセル"), 24);
+            Qt.callLater(forceTextRefresh);
+        }
     }
 
     function charDelayForChar(c) {
@@ -548,6 +566,58 @@ Item {
         if (text.length === 0) return;
         if (root.chatState !== "inputReady") return;
 
+        if (text === "/dev emotion help") {
+            var helpText = "【サポートされているモーションID一覧】\n" +
+                           "・NORMAL (通常)\n" +
+                           "・SMILE (笑顔)\n" +
+                           "・ANGRY (怒り)\n" +
+                           "・SAD (悲しみ)\n" +
+                           "・SURPRISED (驚き)\n" +
+                           "・BLUSH (照れ)\n" +
+                           "・WINK (ウィンク)\n" +
+                           "・DISGUST (嫌悪)\n" +
+                           "・SMUG (どや顔)\n" +
+                           "・THINKING (考え中)\n" +
+                           "・PANIC (混乱)\n" +
+                           "・SLEEPING (居眠り)\n" +
+                           "・SNEEZE (クシャミ)\n\n" +
+                           "※コマンド例: /dev emotion smile で対象のモーションに変更します。";
+
+            chatInput.text = "";
+
+            // Display using typewriter system (same as API responses)
+            root.currentFullText = helpText;
+            root.typewriterText = helpText;
+            root.typewriterIndex = 0;
+            root.typewriterStartIndex = 0;
+            root.skipTyping = false;
+            root.isWaitingForInput = false;
+            root.typewriterClearPageOnResume = false;
+            root.lastLoggedPageText = "";
+            dialogueText.rawText = "";
+            setState("typing");
+            typewriterTimer.charDelay = 1000.0 / 20.0 / Math.max(0.1, root.cachedTextSpeed);
+            typewriterTimer.restart();
+            return;
+        }
+
+        if (text.indexOf("/dev emotion ") === 0) {
+            var parts = text.split(" ");
+            if (parts.length >= 3) {
+                var targetMotion = parts[2].trim().toUpperCase();
+                if (targetMotion.length > 0) {
+                    root.currentEmotionTag = targetMotion;
+                }
+            }
+            chatInput.text = "";
+            return;
+        }
+        if (text === "/dev motion reset") {
+            root.currentEmotionTag = "NORMAL";
+            chatInput.text = "";
+            return;
+        }
+
         chatInput.text = "";
         chatInput.enabled = false;
 
@@ -612,7 +682,16 @@ Item {
         if (modelName === "") modelName = AppSettings.getString("Config_ModelName", "default");
 
         switch (providerIdx) {
-            case 0: providerName = "OpenAI"; break;
+            case 0: {
+                var isCompatible = AppSettings.getInt("Config_OpenAICompatible", 0) === 1;
+                if (isCompatible) {
+                    var baseUrl = AppSettings.getString("Config_OpenAIBaseUrl", "");
+                    providerName = t("openai_compatible", "OpenAI互換") + "(" + baseUrl + ")";
+                } else {
+                    providerName = "OpenAI";
+                }
+                break;
+            }
             case 1: providerName = "Gemini"; break;
             case 2: providerName = "Claude"; break;
             case 3: providerName = "Groq"; break;
@@ -635,6 +714,10 @@ Item {
     }
 
     function onAPISuccess(response) {
+        if (root.chatState !== "waitingAPI") {
+            if (root.chatDebug) console.log("[ChatPanel] API response received but state is not waitingAPI. Discarding.");
+            return;
+        }
         if (root.chatDebug) console.log("[ChatPanel] onAPISuccess len=", (response || "").length);
         waitingDotsTimer.stop();
 
@@ -677,6 +760,9 @@ Item {
     }
 
     function onStreamToken(token) {
+        if (root.chatState !== "waitingAPI" && root.chatState !== "streamingTyping") {
+            return;
+        }
         if (root.chatDebug && token && token.length > 0) console.log("[ChatPanel] onStreamToken len=", token.length);
 
         // First token received -> Calculate Latency (Time to First Token)
@@ -723,6 +809,9 @@ Item {
     }
 
     function onStreamComplete(fullResponse) {
+        if (root.chatState !== "waitingAPI" && root.chatState !== "streamingTyping") {
+            return;
+        }
         if (root.chatDebug) console.log("[ChatPanel] onStreamComplete len=", (fullResponse || "").length);
         waitingDotsTimer.stop();
         root.streamComplete = true;
@@ -769,6 +858,9 @@ Item {
     }
 
     function onAPIError(error) {
+        if (root.chatState !== "waitingAPI") {
+            return;
+        }
         console.warn("[ChatPanel] onAPIError:", error);
         waitingDotsTimer.stop();
 
@@ -839,6 +931,16 @@ Item {
             var message = chatInput.text;
             if (message && message.trim().length > 0)
                 root.submitMessage(message);
+        }
+    }
+
+    Shortcut {
+        sequence: "Ctrl+C"
+        enabled: root.chatState === "waitingAPI"
+        onActivated: {
+            if (root.chatDebug) console.log("[ChatPanel] Cancel requested via Ctrl+C");
+            root.setState("inputReady");
+            chatInput.text = "";
         }
     }
 
@@ -940,7 +1042,10 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
             anchors.verticalCenterOffset: 112
-            text: mixedTextHtml(t("amadeus_kurisu", "アマデウス紅莉栖"), 36)
+            text: {
+                var trans = Localization.translations;
+                return mixedTextHtml(t("amadeus_kurisu", "アマデウス紅莉栖"), 36);
+            }
             textFormat: Text.RichText
             color: "#ffffff"
             font { pixelSize: 36 }
@@ -990,6 +1095,25 @@ Item {
             wrapMode: Text.WordWrap
             visible: root.chatState === "waitingAPI" || root.chatState === "waitForAdvance" || root.isWaitingForInput
         }
+
+        // Cancel hint text (displayed in bottom-left during loading)
+        Text {
+            id: cancelHintText
+            text: {
+                var trans = Localization.translations;
+                return mixedTextHtml(t("cancel_hint", "CTRL+Cでキャンセル"), 24);
+            }
+            textFormat: Text.RichText
+            visible: root.chatState === "waitingAPI"
+            color: "#ffffff"
+            font { family: "MS Mincho"; pixelSize: 24 }
+            anchors {
+                left: parent.left
+                bottom: parent.bottom
+                leftMargin: 20
+                bottomMargin: 20
+            }
+        }
     }
 
     // Input panel (above dialogue)
@@ -1022,7 +1146,10 @@ Item {
                 id: chatInput
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                placeholderText: root.currentEmotionTag === "SLEEPING" ? "Zzz... (キー入力やマウス移動で起こす)" : t("enter_message", "メッセージを入力")
+                placeholderText: {
+                    var trans = Localization.translations;
+                    return root.currentEmotionTag === "SLEEPING" ? t("sleeping_placeholder", "Zzz... (キー入力やマウス移動で起こす)") : t("enter_message", "メッセージを入力");
+                }
                 placeholderTextColor: Qt.rgba(128/255, 128/255, 128/255, 153/255)
                 color: "#ffffff"
                 font { family: "MS Mincho"; pixelSize: 28; italic: chatInput.text.length === 0 || root.currentEmotionTag === "SLEEPING" }
