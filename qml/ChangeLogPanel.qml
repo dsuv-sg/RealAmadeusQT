@@ -23,22 +23,27 @@ Item {
 
 
     function v13Text() {
+        var trans = Localization.translations;
         return t("changelog_v13", "");
     }
 
     function v12Text() {
+        var trans = Localization.translations;
         return t("changelog_v12", "中国語/韓国語/スペイン語/フランス語/ドイツ語/ロシア語 のサポートを追加しました。\n視線トラッキングを追加しました。\nデスクトップ通知機能を実装しました。\n軽量化モードを追加しました。\nAlt+Enter、F11 での画面モード切替を実装しました。\nAPIプロバイダーにOllamaとOpenRouterを追加しました。\nUIのバグを修正しました。\nAPIキーのセキュリティを向上させました。\nパフォーマンスを改善しました。");
     }
 
     function v11Text() {
+        var trans = Localization.translations;
         return t("changelog_v11", "メニュー画面의 클릭 선택을 구현했습니다.");
     }
 
     function v101Text() {
+        var trans = Localization.translations;
         return t("changelog_v101", "GPU사용률이 비정상적으로 높아지는 문제를 수정했습니다.");
     }
 
     function v10Text() {
+        var trans = Localization.translations;
         return t("changelog_v10", "Real Amadeus의 최초 버전을 릴리스했습니다.");
     }
 
@@ -477,7 +482,10 @@ Text {
         anchors { right: parent.right; rightMargin: 100; bottom: parent.bottom; bottomMargin: 60 }
         Text {
             anchors.centerIn: parent
-            text: mixedTextHtml(t("close", "閉じる"), font.pixelSize, true)
+            text: {
+                var trans = Localization.translations;
+                return mixedTextHtml(t("close", "閉じる"), font.pixelSize, true);
+            }
             color: "#FFFFFF"
             textFormat: Text.RichText
             font.pixelSize: 32
