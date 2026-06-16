@@ -41,7 +41,7 @@ bool UpdateManager::compareVersions(const QString &current, const QString &lates
 {
     QVersionNumber currVer = QVersionNumber::fromString(cleanVersion(current));
     QVersionNumber lateVer = QVersionNumber::fromString(cleanVersion(latest));
-    return currVer != lateVer;
+    return currVer < lateVer;
 }
 
 void UpdateManager::checkForUpdate()
