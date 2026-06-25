@@ -1,3 +1,5 @@
+## 軽量化版RealAmadeus / 軽量化版リアルアマデウス
+
 QT版リアルアマデウスのリポジトリです。
 
 バグ修正/機能追加などの要望を、IssuesやDMにいただけたらうれしいです。
@@ -37,6 +39,22 @@ Clone this repository and load the project in QT 6 (6.10.1).
 Download the [Live2D Native SDK](https://www.live2d.com/sdk/download/native/) after agreeing to the terms of use.
 
 Extract CubismSdkForNative-X-r.X.X and place it so that it becomes thirdparty/CubismSdkForNative-X-r.X.X.
+
+## Support / サポート
+
+RealAmadeusや、その他DSUV/ELVELTのプロジェクトを支援してくださる方がいらっしゃいましたら、寄付をしていただけると嬉しいです！
+
+100円(0.6ドル程度)からご支援いただけます。
+
+いただいたご支援金は、Elveltのサイト運営/サーバー維持費/プロジェクト開発費 などに使わせていただきます。
+
+If you would like to support RealAmadeus or other DSUV/ELVELT projects, I would greatly appreciate a donation!
+
+You can contribute starting from as little as 100 yen (approximately $0.60).
+
+Your contributions will be used for expenses such as operating the Elvelt website, server maintenance, and project development costs.
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/K6Y021XDS8)
 
 ## License / ライセンス
 
