@@ -27,11 +27,11 @@ Item {
     property int originalLang: 0
     property bool suppressLanguageCommit: true
 
-    readonly property string _fontFamily: "MS Mincho"
+    readonly property string _fontFamily: "Noto Serif CJK JP"
 
     // Hybrid font rendering
-    // Korean: Hangul → Noto Serif, other → MS Mincho
-    // Russian: Cyrillic → MS Mincho + letter-spacing -8.4, other → MS Mincho
+    // Korean: Hangul → Noto Serif, other → Noto Serif CJK JP
+    // Russian: Cyrillic → Noto Serif CJK JP + letter-spacing -8.4, other → Noto Serif CJK JP
     function styledText(text, tighterCyrillic) {
         if (!text) return "";
 
@@ -72,19 +72,19 @@ Item {
         }
         function flushCyrillic() {
             if (cyrillicRun.length === 0) return;
-            var spacing = (tighterCyrillic && lang === 8) ? "-12.0px" : "-7.0px";
-            result += '<span style="letter-spacing: ' + spacing + ';">' + escapeHtml(cyrillicRun) + '</span>';
+            var spacing = "0px";
+            result += '<span style="font-family: \'Noto Serif\', \'Noto Serif CJK JP\'; font-weight: 300; letter-spacing: ' + spacing + ';">' + escapeHtml(cyrillicRun) + '</span><span style="letter-spacing: 0px;"></span>';
             cyrillicRun = "";
         }
         function flushCyrillicI() {
             if (cyrillicIRun.length === 0) return;
-            var spacing = (tighterCyrillic && lang === 8) ? "-5.0px" : "-2.0px";
-            result += '<span style="letter-spacing: ' + spacing + ';">' + escapeHtml(cyrillicIRun) + '</span>';
+            var spacing = "0px";
+            result += '<span style="font-family: \'Noto Serif\', \'Noto Serif CJK JP\'; font-weight: 300; letter-spacing: ' + spacing + ';">' + escapeHtml(cyrillicIRun) + '</span><span style="letter-spacing: 0px;"></span>';
             cyrillicIRun = "";
         }
         function flushOther() {
             if (otherRun.length === 0) return;
-            result += '<font face="MS Mincho">' + escapeHtml(otherRun) + '</font>';
+            result += '<span style="font-family: \'Noto Serif\', \'Noto Serif CJK JP\'; font-weight: 300;">' + escapeHtml(otherRun) + '</span>';
             otherRun = "";
         }
 
@@ -134,8 +134,13 @@ Item {
                    (code >= 0x1100 && code <= 0x11FF) ||
                    (code >= 0x3130 && code <= 0x318F);
         }
+        function isCyrillic(c) {
+            var code = c.charCodeAt(0);
+            return (code >= 0x0400 && code <= 0x04FF);
+        }
         var result = "";
         var hangulRun = "";
+        var cyrillicRun = "";
         var otherRun = "";
         var krFace = notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR";
         function flushHangul() {
@@ -143,22 +148,34 @@ Item {
             result += '<font face="' + krFace + '">' + escapeHtml(hangulRun) + '</font>';
             hangulRun = "";
         }
+        function flushCyrillic() {
+            if (cyrillicRun.length === 0) return;
+            result += '<span style="font-family: \'Noto Serif\', \'Noto Serif CJK JP\'; font-weight: 300; letter-spacing: 0px;">' + escapeHtml(cyrillicRun) + '</span><span style="letter-spacing: 0px;"></span>';
+            cyrillicRun = "";
+        }
         function flushOther() {
             if (otherRun.length === 0) return;
-            result += '<font face="MS Mincho">' + escapeHtml(otherRun) + '</font>';
+            result += '<span style="font-family: \'Noto Serif\', \'Noto Serif CJK JP\'; font-weight: 300;">' + escapeHtml(otherRun) + '</span>';
             otherRun = "";
         }
         for (var i = 0; i < text.length; i++) {
             var c = text[i];
             if (isHangul(c)) {
+                flushCyrillic();
                 flushOther();
                 hangulRun += c;
+            } else if (isCyrillic(c)) {
+                flushHangul();
+                flushOther();
+                cyrillicRun += c;
             } else {
                 flushHangul();
+                flushCyrillic();
                 otherRun += c;
             }
         }
         flushHangul();
+        flushCyrillic();
         flushOther();
         return result;
     }
@@ -450,7 +467,7 @@ Item {
                                 text: styledLanguageName(root.languageNames[languageCombo.currentIndex] || "")
                                 textFormat: Text.RichText
                                 color: "#FFFFFF"
-                                font { family: root._fontFamily; pixelSize: 24 }
+                                font { family: root._fontFamily; pixelSize: 24; weight: Font.Light }
                                 verticalAlignment: Text.AlignVCenter
                                 elide: Text.ElideRight
                                 Connections {
@@ -467,7 +484,7 @@ Item {
                                     text: styledLanguageName(modelData)
                                     textFormat: Text.RichText
                                     color: "#FFFFFF"
-                                    font { family: root._fontFamily; pixelSize: 24 }
+                                    font { family: root._fontFamily; pixelSize: 24; weight: Font.Light }
                                     verticalAlignment: Text.AlignVCenter; leftPadding: 12
                                 }
                                 highlighted: languageCombo.highlightedIndex === index
@@ -547,7 +564,7 @@ Item {
                             text: styledText(t("setting_openai_base_url_example", "ベースURLの例: https://api.example.com/v1"))
                             textFormat: Text.StyledText
                             color: "#FFFFFF"
-                            font { family: root._fontFamily; pixelSize: 20 }
+                            font { family: root._fontFamily; pixelSize: 20; weight: Font.Light }
                             verticalAlignment: Text.AlignTop
                         }
                         ConfigRow { label: t("setting_model_name", "LLM モデル名"); ConfigTextField { id: modelNameField } }
@@ -563,7 +580,7 @@ Item {
                     text: styledText(t("setting_vertex_note", "※ Vertexを使用するためには、gCloud CLIのインストールが必要です。"))
                     textFormat: Text.StyledText
                     color: "#FFFFFF"
-                    font { family: root._fontFamily; pixelSize: 24 }
+                    font { family: root._fontFamily; pixelSize: 24; weight: Font.Light }
                     verticalAlignment: Text.AlignVCenter
                 }
                         Item { Layout.fillHeight: true }
@@ -826,7 +843,7 @@ Item {
             text: styledText(comboRoot.displayText)
             textFormat: Text.StyledText
             color: "#FFFFFF"
-            font { family: root._fontFamily; pixelSize: 24 }
+            font { family: root._fontFamily; pixelSize: 24; weight: Font.Light }
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
         }
@@ -883,7 +900,7 @@ Item {
                 text: styledText(modelData)
                 textFormat: Text.StyledText
                 color: "#FFFFFF"
-                font { family: root._fontFamily; pixelSize: 24 }
+                font { family: root._fontFamily; pixelSize: 24; weight: Font.Light }
                 verticalAlignment: Text.AlignVCenter; leftPadding: 12
             }
             highlighted: comboRoot.highlightedIndex === index
@@ -896,7 +913,7 @@ Item {
         id: fieldRoot
         implicitWidth: 400; implicitHeight: 50
         color: "#FFFFFF"
-        font { family: root._fontFamily; pixelSize: 24 }
+        font { family: root._fontFamily; pixelSize: 24; weight: Font.Light }
         verticalAlignment: Text.AlignVCenter; leftPadding: 12
 
         background: Rectangle {

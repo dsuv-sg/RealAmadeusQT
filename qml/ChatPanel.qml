@@ -16,7 +16,7 @@ Item {
     property bool autoMode: false
     property real autoSpeed: 3.0
     property int configLanguage: AppSettings.getInt("Config_Language", 0)
-    readonly property string _fontFamily: "MS Mincho"
+    readonly property string _fontFamily: "Noto Serif CJK JP"
     property var  backLog: null
     property bool menuPanelOpen: false
 
@@ -121,7 +121,7 @@ Item {
 
 
     // ─── Mixed-font HTML generator (per-character script detection) ───
-    // Hangul → Noto Serif, Cyrillic → MS Mincho + letterSpacing -6.4, Other → MS Mincho
+    // Hangul → Noto Serif, Cyrillic → Noto Serif CJK JP + letterSpacing -6.4, Other → Noto Serif CJK JP
     function mixedTextHtml(text, pixelSize) {
         if (!text) return "";
 
@@ -137,16 +137,16 @@ Item {
             for (var i = 0; i < text.length; i++) {
                 var seg = text[i];
                 var segText = seg.text || "";
-                var segFont = seg.font || "MS Mincho";
+                var segFont = seg.font || "'Noto Serif', 'Noto Serif CJK JP'";
                 var segSpacing = seg.letterSpacing !== undefined ? seg.letterSpacing : 0.0;
                 
                 if (segFont === "Noto Serif CJK KR" || segFont === "Noto Serif CJK") {
                     var family = notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR";
                     html += '<span style="font-family: \'' + family + '\';">' + escapeHtml(segText) + '</span>';
                 } else if (segSpacing !== 0.0) {
-                    html += '<span style="font-family: \'' + segFont + '\'; letter-spacing: ' + segSpacing + 'px;">' + escapeHtml(segText) + '</span>';
+                    html += '<span style="font-family: ' + segFont + '; letter-spacing: ' + segSpacing + 'px;">' + escapeHtml(segText) + '</span>';
                 } else {
-                    html += '<span style="font-family: \'' + segFont + '\';">' + escapeHtml(segText) + '</span>';
+                    html += '<span style="font-family: ' + segFont + ';">' + escapeHtml(segText) + '</span>';
                 }
             }
             return '<span style="font-size: ' + pixelSize + 'px;">' + html + '</span>';
@@ -172,13 +172,13 @@ Item {
                 var family = notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR";
                 html += '<span style="font-family: \'' + family + '\';">' + escapeHtml(currentText) + '</span>';
             } else if (currentType === "cyrillic") {
-                var spacing = (root.configLanguage === 8) ? "-12.0px" : "-8.0px";
-                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span>';
+                var spacing = "0px";
+                html += '<span style="font-family: \'Noto Serif\', \'Noto Serif CJK JP\'; font-weight: 300; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span><span style="letter-spacing: 0px;"></span>';
             } else if (currentType === "cyrillic_i") {
-                var spacing = (root.configLanguage === 8) ? "-7.0px" : "-5.0px";
-                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span>';
+                var spacing = "0px";
+                html += '<span style="font-family: \'Noto Serif\', \'Noto Serif CJK JP\'; font-weight: 300; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span><span style="letter-spacing: 0px;"></span>';
             } else {
-                html += '<span style="font-family: \'MS Mincho\';">' + escapeHtml(currentText) + '</span>';
+                html += '<span style="font-family: \'Noto Serif\', \'Noto Serif CJK JP\'; font-weight: 300;">' + escapeHtml(currentText) + '</span>';
             }
             currentText = "";
         }
@@ -1089,7 +1089,7 @@ Item {
             anchors.verticalCenterOffset: 49
             text: ""
             color: Qt.rgba(255/255, 153/255, 0/255, 204/255)
-            font { family: "MS Mincho"; pixelSize: 28}
+            font { family: "Noto Serif CJK JP"; weight: Font.Light; pixelSize: 28}
             horizontalAlignment: Text.AlignRight
             verticalAlignment: Text.AlignBottom
             wrapMode: Text.WordWrap
@@ -1106,7 +1106,7 @@ Item {
             textFormat: Text.RichText
             visible: root.chatState === "waitingAPI"
             color: "#ffffff"
-            font { family: "MS Mincho"; pixelSize: 24 }
+            font { family: "Noto Serif CJK JP"; weight: Font.Light; pixelSize: 24 }
             anchors {
                 left: parent.left
                 bottom: parent.bottom
@@ -1152,7 +1152,7 @@ Item {
                 }
                 placeholderTextColor: Qt.rgba(128/255, 128/255, 128/255, 153/255)
                 color: "#ffffff"
-                font { family: "MS Mincho"; pixelSize: 28; italic: chatInput.text.length === 0 || root.currentEmotionTag === "SLEEPING" }
+                font { family: "Noto Serif CJK JP"; weight: Font.Light; pixelSize: 28; italic: chatInput.text.length === 0 || root.currentEmotionTag === "SLEEPING"; letterSpacing: 0.0 }
                 background: null
                 focus: true
                 onTextChanged: root.resetIdleTimer()

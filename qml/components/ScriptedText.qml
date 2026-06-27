@@ -1,6 +1,6 @@
 import QtQuick 2.15
 
-// ScriptedText: Text-derived component that applies MS Mincho for non-CJK
+// ScriptedText: Text-derived component that applies Noto Serif CJK JP for non-CJK
 // characters and Noto Serif CJK fonts for CJK/Hangul runs using <font face=>
 // Use by setting `rawText: someString` (supports newlines). Inherit Text props.
 Text {
@@ -10,8 +10,9 @@ Text {
     property int configLanguage: (typeof AppSettings !== 'undefined') ? AppSettings.getInt("Config_Language", 0) : 0
     textFormat: Text.StyledText
 
-    // Force default (non-CJK) glyphs to MS Mincho (or embedded Noto KR) so plain text uses Mincho-style
-    font.family: (typeof NotoKRFamily !== 'undefined' && NotoKRFamily ? NotoKRFamily : "MS Mincho")
+    // Force default (non-CJK) glyphs to Noto Serif CJK JP (or embedded Noto KR) so plain text uses Noto Serif ExtraLight
+    font.family: (typeof NotoKRFamily !== 'undefined' && NotoKRFamily ? NotoKRFamily : "Noto Serif CJK JP")
+    font.weight: (font.family === "Noto Serif CJK JP" ? Font.ExtraLight : Font.Normal)
 
     // Load Noto CJK fonts from resources (qrc)
     FontLoader { id: notoSC; source: "file:///" + appDirPath + "/resources/fonts/NotoSerifCJKsc-Regular.otf" }
@@ -101,11 +102,11 @@ Text {
                     if (self.debugLog && !self._logged) { console.log("ScriptedText: CJK face=", faceC); self._logged = true; }
                     out += '<font face="' + faceC + '">' + esc + '</font>';
                 } else {
-                    // non-CJK language active (e.g. Japanese) → use MS Mincho
+                    // non-CJK language active (e.g. Japanese) → use Noto Serif CJK JP (ExtraLight)
                     out += esc;
                 }
             } else {
-                // non-CJK: rely on Text.font.family (MS Mincho) for Latin/punctuation
+                // non-CJK: rely on Text.font.family (Noto Serif CJK JP) for Latin/punctuation
                 out += esc;
             }
         }

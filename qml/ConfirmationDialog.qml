@@ -24,7 +24,7 @@ Item {
 
 
     // ─── Mixed-font HTML generator (per-character script detection) ───
-    // Hangul → Noto Serif, Other → MS Mincho
+    // Hangul → Noto Serif, Other → Noto Serif CJK JP
     // If applyRussianSpacing is true, Cyrillic uses tighter letter spacing.
     function mixedTextHtml(text, pixelSize, applyRussianSpacing) {
         if (!text) return "";
@@ -42,7 +42,7 @@ Item {
             for (var i = 0; i < text.length; i++) {
                 var seg = text[i];
                 var segText = seg.text || "";
-                var segFont = seg.font || "MS Mincho";
+                var segFont = seg.font || "Noto Serif CJK JP";
                 var segSpacing = seg.letterSpacing !== undefined ? seg.letterSpacing : 0.0;
                 
                 if (segFont === "Noto Serif CJK KR" || segFont === "Noto Serif CJK") {
@@ -50,7 +50,7 @@ Item {
                     html += '<span style="font-family: \'' + family + '\';">' + escapeHtml(segText) + '</span>';
                 } else if (segSpacing !== 0.0) {
                     html += '<span style="font-family: \'' + segFont + '\'; letter-spacing: ' + segSpacing + 'px;">' + escapeHtml(segText) + '</span>';
-                } else if (applyRussianSpacing && segFont === "MS Mincho") {
+                } else if (applyRussianSpacing && segFont === "Noto Serif CJK JP") {
                     var runHtml = "";
                     var curType = "";
                     var curText = "";
@@ -58,13 +58,13 @@ Item {
                     function flushRun() {
                         if (curText.length === 0) return;
                         if (curType === "cyrillic") {
-                            var spacing = (root.configLanguage === 8) ? "-12.0px" : "-8.0px";
-                            runHtml += '<span style="font-family: \'MS Mincho\'; letter-spacing: ' + spacing + ';">' + escapeHtml(curText) + '</span>';
+                            var spacing = "0px";
+                            runHtml += '<span style="font-family: \'Noto Serif\', \'Noto Serif CJK JP\'; font-weight: 300; letter-spacing: ' + spacing + ';">' + escapeHtml(curText) + '</span><span style="letter-spacing: 0px;"></span>';
                         } else if (curType === "cyrillic_i") {
-                            var spacing = (root.configLanguage === 8) ? "-7.0px" : "-5.0px";
-                            runHtml += '<span style="font-family: \'MS Mincho\'; letter-spacing: ' + spacing + ';">' + escapeHtml(curText) + '</span>';
+                            var spacing = "0px";
+                            runHtml += '<span style="font-family: \'Noto Serif\', \'Noto Serif CJK JP\'; font-weight: 300; letter-spacing: ' + spacing + ';">' + escapeHtml(curText) + '</span><span style="letter-spacing: 0px;"></span>';
                         } else {
-                            runHtml += '<span style="font-family: \'MS Mincho\';">' + escapeHtml(curText) + '</span>';
+                            runHtml += '<span style="font-family: \'Noto Serif\', \'Noto Serif CJK JP\'; font-weight: 300;">' + escapeHtml(curText) + '</span>';
                         }
                         curText = "";
                     }
@@ -114,13 +114,13 @@ Item {
                 var family = notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR";
                 html += '<span style="font-family: \'' + family + '\';">' + escapeHtml(currentText) + '</span>';
             } else if (currentType === "cyrillic") {
-                var spacing = (root.configLanguage === 8) ? "-12.0px" : "-8.0px";
-                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span>';
+                var spacing = "0px";
+                html += '<span style="font-family: \'Noto Serif\', \'Noto Serif CJK JP\'; font-weight: 300; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span><span style="letter-spacing: 0px;"></span>';
             } else if (currentType === "cyrillic_i") {
-                var spacing = (root.configLanguage === 8) ? "-7.0px" : "-5.0px";
-                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span>';
+                var spacing = "0px";
+                html += '<span style="font-family: \'Noto Serif\', \'Noto Serif CJK JP\'; font-weight: 300; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span><span style="letter-spacing: 0px;"></span>';
             } else {
-                html += '<span style="font-family: \'MS Mincho\';">' + escapeHtml(currentText) + '</span>';
+                html += '<span style="font-family: \'Noto Serif\', \'Noto Serif CJK JP\'; font-weight: 300;">' + escapeHtml(currentText) + '</span>';
             }
             currentText = "";
         }

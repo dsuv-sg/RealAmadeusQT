@@ -101,6 +101,7 @@ qt_add_qml_module(appRealAmadeusPC
         resources/fonts/MateSC-Regular.ttf
         resources/fonts/DepartureMono-Regular.otf
         resources/fonts/LiberationSans.ttf
+        "resources/fonts/NotoSerifCJK-ExtraLight.ttc"
         resources/locales/ja.json
         resources/locales/en.json
         resources/locales/zh.json
@@ -221,7 +222,7 @@ add_custom_command(TARGET appRealAmadeusPC POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory
     "$<TARGET_FILE_DIR:appRealAmadeusPC>/resources/models/AmadeusKurisu5.0"
     COMMAND ${CMAKE_COMMAND} -E copy_directory
-    "${CMAKE_CURRENT_SOURCE_DIR}/../RealAmadeusUnity/Assets/AmadeusKurisu5.0/reama5.0"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/AmadeusKurisu5.0/reama5.0"
     "$<TARGET_FILE_DIR:appRealAmadeusPC>/resources/models/AmadeusKurisu5.0/reama5.0"
 )
 

@@ -174,7 +174,7 @@ Item {
             anchors.verticalCenterOffset: -427.5
             text: "Auto"
             color: "#ff9900"
-            font { family: "MS Mincho"; pixelSize: 70 }
+            font { family: "Noto Serif CJK JP"; weight: Font.Light; pixelSize: 70 }
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
         }

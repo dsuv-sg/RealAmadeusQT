@@ -74,13 +74,13 @@ Item {
                 var family = notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR";
                 html += '<span style="font-family: \'' + family + '\';">' + escapeHtml(currentText) + '</span>';
             } else if (currentType === "cyrillic") {
-                var spacing = (tighterCyrillic && configLanguage === 8) ? "-12.0px" : "-7.0px";
-                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span>';
+                var spacing = "0px";
+                html += '<span style="font-family: \'Noto Serif\', \'Noto Serif CJK JP\', \'MS Mincho\'; font-weight: 300; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span>';
             } else if (currentType === "cyrillic_i") {
-                var spacing = (tighterCyrillic && configLanguage === 8) ? "-5.0px" : "-2.0px";
-                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span>';
+                var spacing = "0px";
+                html += '<span style="font-family: \'Noto Serif\', \'Noto Serif CJK JP\', \'MS Mincho\'; font-weight: 300; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span>';
             } else {
-                html += '<span style="font-family: \'MS Mincho\';">' + escapeHtml(currentText) + '</span>';
+                html += '<span style="font-family: \'Noto Serif\', \'Noto Serif CJK JP\', \'MS Mincho\'; font-weight: 300;">' + escapeHtml(currentText) + '</span>';
             }
             currentText = "";
         }

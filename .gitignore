@@ -83,3 +83,8 @@ CMakeLists.txt.user*
 /third_party/CubismSdkForNative-5-r.4.1/
 ./build_mingw.bat
 ./build_msvc.bat
+
+# Fonts
+/resources/fonts/MSMINCHO.TTF
+/resources/fonts/msmincho.ttc
+/resources/fonts/msmincho.ttf

@@ -48,7 +48,7 @@ Item {
     }
 
     // ─── Mixed-font HTML generator (per-character script detection) ───
-    // Hangul → Noto Serif, Cyrillic → MS Mincho + letterSpacing -6.4, Other → MS Mincho
+    // Hangul → Noto Serif, Cyrillic → Noto Serif CJK JP + letterSpacing -6.4, Other → Noto Serif CJK JP
     function mixedTextHtml(text, pixelSize, tighterCyrillic) {
         if (!text) return "";
 
@@ -64,7 +64,7 @@ Item {
             for (var i = 0; i < text.length; i++) {
                 var seg = text[i];
                 var segText = seg.text || "";
-                var segFont = seg.font || "MS Mincho";
+                var segFont = seg.font || "Noto Serif CJK JP";
                 var segSpacing = seg.letterSpacing !== undefined ? seg.letterSpacing : 0.0;
                 
                 if (segFont === "Noto Serif CJK KR" || segFont === "Noto Serif CJK") {
@@ -99,13 +99,13 @@ Item {
                 var family = notoKR.status === FontLoader.Ready ? notoKR.name : "Noto Serif CJK KR";
                 html += '<span style="font-family: \'' + family + '\';">' + escapeHtml(currentText) + '</span>';
             } else if (currentType === "cyrillic") {
-                var spacing = (tighterCyrillic && configLanguage === 8) ? "-12.0px" : "-7.0px";
-                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span>';
+                var spacing = "0px";
+                html += '<span style="font-family: \'Noto Serif\', \'Noto Serif CJK JP\'; font-weight: 300; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span><span style="letter-spacing: 0px;"></span>';
             } else if (currentType === "cyrillic_i") {
-                var spacing = (tighterCyrillic && configLanguage === 8) ? "-5.0px" : "-2.0px";
-                html += '<span style="font-family: \'MS Mincho\'; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span>';
+                var spacing = "0px";
+                html += '<span style="font-family: \'Noto Serif\', \'Noto Serif CJK JP\'; font-weight: 300; letter-spacing: ' + spacing + ';">' + escapeHtml(currentText) + '</span><span style="letter-spacing: 0px;"></span>';
             } else {
-                html += '<span style="font-family: \'MS Mincho\';">' + escapeHtml(currentText) + '</span>';
+                html += '<span style="font-family: \'Noto Serif\', \'Noto Serif CJK JP\'; font-weight: 300;">' + escapeHtml(currentText) + '</span>';
             }
             currentText = "";
         }
@@ -215,7 +215,7 @@ Item {
 
                         Text {
                             y: 4
-                            text: "Version 1. 3"
+                            text: "Version 1.3Q"
                             color: "#FF9900"
                             font.family: "MS Mincho"
                             font.pixelSize: 36
@@ -268,7 +268,7 @@ Item {
 
                         Text {
                             y: 4
-                            text: "Version 1. 2"
+                            text: "Version 1.2Q"
                             color: "#FF9900"
                             font.family: "MS Mincho"
                             font.pixelSize: 36
@@ -321,7 +321,7 @@ Text {
 
                         Text {
                             y: 4
-                            text: "Version 1. 1"
+                            text: "Version 1.1Q"
                             color: "#FF9900"
                             font.family: "MS Mincho"
                             font.pixelSize: 36
@@ -374,7 +374,7 @@ Text {
 
                         Text {
                             y: 4
-                            text: "Version 1. 0 .1"
+                            text: "Version 1.0.1"
                             color: "#FF9900"
                             font.family: "MS Mincho"
                             font.pixelSize: 36
@@ -428,7 +428,7 @@ Text {
 
                         Text {
                             y: 4
-                            text: "Version 1. 0"
+                            text: "Version 1.0"
                             color: "#FF9900"
                             font.family: "MS Mincho"
                             font.pixelSize: 36
