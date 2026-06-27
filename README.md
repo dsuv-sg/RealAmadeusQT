@@ -28,8 +28,6 @@ Therefore, we hereby state that neither DSUV nor Elvelt will request any monetar
 
 ## How to use / 使用方法
 
-### QT
-
 本リポジトリをクローンし、QT 6 (6.10.1)でプロジェクトを読み込んで下さい。
 
 ### Live2Dについて
@@ -46,7 +44,7 @@ CubismSdkForNative-X-r.X.Xを展開し、thirdparty/CubismSdkForNative-X-r.X.X�
 
 * **Windows以外の環境 (Mac, Linux等)**: 起動時に自動でフォントのダウンロードが試行されます。または、お手持ちのWindows環境の `C:\Windows\Fonts\` から `msmincho.ttc`（または `msmincho.ttf`）をコピーし、`RealAmadeusPC/resources/fonts/` 配下に手動で配置していただくことでも機能します。
 
-### QT
+
 
 Clone this repository and load the project in QT 6 (6.10.1).
 
