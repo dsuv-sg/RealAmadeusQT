@@ -30,17 +30,25 @@ Therefore, we hereby state that neither DSUV nor Elvelt will request any monetar
 
 本リポジトリをクローンし、QT 6 (6.10.1)でプロジェクトを読み込んで下さい。
 
+### Live2Dについて
+
 [Live2DのNativeSDK](https://www.live2d.com/sdk/download/native/) を、利用規約を許諾した上で、ダウンロードしてください。
 
 CubismSdkForNative-X-r.X.Xを展開し、thirdparty/CubismSdkForNative-X-r.X.Xとなるように配置して下さい。
 
 当プロジェクトでは表示フォントとしてＭＳ明朝を使用していますが、ライセンス（著作権）上の制約からフォントファイルを同梱していません。
 
-* **Windows環境**: OS標準のＭＳ明朝を自動で検索・ロードするため、追加の準備は不要です
-。
+### MS明朝フォントについて
+
+* **Windows環境**: OS標準のＭＳ明朝を自動で検索・ロードするため、追加の準備は不要です。
+
 * **Windows以外の環境 (Mac, Linux等)**: 起動時に自動でフォントのダウンロードが試行されます。または、お手持ちのWindows環境の `C:\Windows\Fonts\` から `msmincho.ttc`（または `msmincho.ttf`）をコピーし、`RealAmadeusPC/resources/fonts/` 配下に手動で配置していただくことでも機能します。
 
+
+
 Clone this repository and load the project in QT 6 (6.10.1).
+
+### About Live2D
 
 Download the [Live2D Native SDK](https://www.live2d.com/sdk/download/native/) after agreeing to the terms of use.
 
@@ -48,7 +56,9 @@ Extract CubismSdkForNative-X-r.X.X and place it so that it becomes thirdparty/Cu
 
 ### About MS Mincho Font
 This project uses "MS Mincho" as the display font. Due to licensing and copyright restrictions, the font file is not bundled with this repository.
+
 * **Windows environment**: The system's pre-installed "MS Mincho" is detected and loaded automatically; no extra steps are required.
+
 * **Non-Windows environments (Mac, Linux, etc.)**: The application will automatically attempt to download the font at startup. Alternatively, you can manually copy `msmincho.ttc` (or `msmincho.ttf`) from `C:\Windows\Fonts\` of a Windows machine and place it under `RealAmadeusPC/resources/fonts/`.
 
 ## Support / サポート
