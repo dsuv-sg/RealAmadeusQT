@@ -23,5 +23,5 @@ signals:
     void settingsChanged(const QString &key);
 
 private:
-    QSettings m_settings;
+    mutable QSettings m_settings;
 };

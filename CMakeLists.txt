@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(RealAmadeusPC VERSION 1.3.0 LANGUAGES CXX)
+project(RealAmadeusPC VERSION 1.4.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -54,6 +54,12 @@ qt_add_executable(appRealAmadeusPC
     src/notificationservice.h
     src/localizationmanager.cpp
     src/localizationmanager.h
+    src/achievementmanager.cpp
+    src/achievementmanager.h
+    src/conversationio.cpp
+    src/conversationio.h
+    src/randomeventservice.cpp
+    src/randomeventservice.h
     ${APP_ICON_RESOURCE}
 )
 
@@ -77,6 +83,8 @@ qt_add_qml_module(appRealAmadeusPC
         qml/ChangeLogPanel.qml
         qml/HelpPanel.qml
         qml/ConfirmationDialog.qml
+        qml/AchievementPanel.qml
+        qml/MiniGamePanel.qml
         qml/components/FadePanel.qml
         qml/components/ScriptedText.qml
         qml/SystemPanel.qml
@@ -113,6 +121,8 @@ qt_add_qml_module(appRealAmadeusPC
         resources/locales/uk.json
         resources/locales/pt.json
         resources/locales/tr.json
+        resources/locales/he.json
+        resources/locales/ar.json
 )
 
 target_include_directories(appRealAmadeusPC PRIVATE src)

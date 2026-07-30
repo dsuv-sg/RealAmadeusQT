@@ -13,6 +13,10 @@ Item {
     property int activeCategory: 0
     property int currentProviderIndex: AppSettings.getInt("Config_ApiProvider", 0)
 
+    property string importStatusText: ""
+    property bool importSuccess: false
+    property var chatPanelRef: null
+
     // Per-provider key/model buffers ( mirrors ConfigPanelController's apiKeys dict )
     property var apiKeyBuffer:   ({})
     property var modelNameBuffer: ({})
@@ -192,6 +196,7 @@ Item {
         t("screen_mode_fullscreen", "フルスクリーン"),
         t("screen_mode_windowed", "ウィンドウ")
     ]
+    property var chatLanguageNames: []
 
     function rebuildLocalizedArrays() {
         categoryNames = [
@@ -204,6 +209,22 @@ Item {
         screenModeModel = [
             t("screen_mode_fullscreen", "フルスクリーン"),
             t("screen_mode_windowed", "ウィンドウ")
+        ];
+        chatLanguageNames = [
+            t("setting_chat_lang_same_as_ui", "表示言語と同じ"),
+            "日本語",
+            "English",
+            "中文",
+            "한국어",
+            "Español",
+            "Français",
+            "Deutsch",
+            "Русский",
+            "Українська",
+            "Português",
+            "Türkçe",
+            "עברית",
+            "العربية"
         ];
     }
 
@@ -239,7 +260,9 @@ Item {
         "Русский",
         "Українська",
         "Português",
-        "Türkçe"
+        "Türkçe",
+        "עברית",
+        "العربية"
     ]
 
     Component.onCompleted: {
@@ -259,6 +282,13 @@ Item {
                     languageCombo.currentIndex = newLang;
                     root.suppressLanguageCommit = false;
                 }
+            } else if (key === "Config_ChatLanguage") {
+                var newChatLang = AppSettings.getInt("Config_ChatLanguage", 0);
+                if (chatLanguageCombo.currentIndex !== newChatLang) {
+                    root.suppressLanguageCommit = true;
+                    chatLanguageCombo.currentIndex = newChatLang;
+                    root.suppressLanguageCommit = false;
+                }
             }
         }
     }
@@ -270,6 +300,15 @@ Item {
             if (visible) {
                 sidebarRepeater.model = null;
                 sidebarRepeater.model = root.categoryNames;
+            }
+            if (chatLanguageCombo) {
+                var prevIndex = chatLanguageCombo.currentIndex;
+                chatLanguageCombo.model = null;
+                chatLanguageCombo.model = root.chatLanguageNames;
+                chatLanguageCombo.currentIndex = prevIndex;
+                if (chatLangComboText) {
+                    chatLangComboText.text = styledLanguageName(root.chatLanguageNames[prevIndex] || "");
+                }
             }
         }
     }
@@ -301,6 +340,7 @@ Item {
         notificationsToggle.checked = AppSettings.getInt("Config_DesktopNotifications", 1) === 1;
         lightweightToggle.checked  = AppSettings.getInt("Config_LightweightMode", 0) === 1;
         languageCombo.currentIndex = Math.min(root.lang, languageNames.length - 1);
+        chatLanguageCombo.currentIndex = Math.min(AppSettings.getInt("Config_ChatLanguage", 0), chatLanguageNames.length - 1);
         textSpeedRow.sliderValue   = AppSettings.getFloat("Config_TextSpeed", 1.0);
         autoSpeedRow.sliderValue   = AppSettings.getFloat("Config_AutoSpeed", 3.0);
         autoModeToggle.checked     = AppSettings.getInt("Config_AutoMode", 0) === 1;
@@ -327,6 +367,8 @@ Item {
         var newLang = languageCombo.currentIndex;
         AppSettings.setInt("Config_Language", newLang);
         root.lang = newLang;
+
+        AppSettings.setInt("Config_ChatLanguage", chatLanguageCombo.currentIndex);
 
         AppSettings.setInt("Config_SkipLoading",       skipLoadingToggle.checked ? 1 : 0);
         AppSettings.setInt("Config_RightClickMenu",    rightClickToggle.checked  ? 1 : 0);
@@ -367,11 +409,108 @@ Item {
         modelNameField.text = modelNameBuffer[newIdx] || "";
     }
 
+    function exportConversation() {
+        if (!root.chatPanelRef || !root.chatPanelRef.conversationHistory) {
+            root.importStatusText = t("export_no_data", "会話データがありません");
+            root.importSuccess = false;
+            return;
+        }
+        var timestamp = new Date().toISOString().replace(/[:.]/g, "-").substring(0, 19);
+        var defaultPath = appDirPath + "/chat_export_" + timestamp + ".json";
+        var filePath = ConversationIO.getSaveFileName(t("export_title", "会話記録の保存先を選択"), defaultPath, "JSON files (*.json)");
+        if (filePath === "") {
+            root.forceActiveFocus();
+            return;
+        }
+        try {
+            var history = root.chatPanelRef.conversationHistory;
+            var exportMessages = [];
+            for (var i = 0; i < history.length; i++) {
+                if (history[i] && history[i].role !== "system") exportMessages.push(history[i]);
+            }
+            var exportData = {
+                version: 1,
+                exportedAt: new Date().toISOString(),
+                turnCount: root.chatPanelRef.turnCount || 0,
+                messages: exportMessages
+            };
+            var json = JSON.stringify(exportData, null, 2);
+            ConversationIO.saveToFile(filePath, json);
+            root.importStatusText = t("export_success", "エクスポート完了: ") + filePath;
+            root.importSuccess = true;
+            if (typeof AchievementManager !== "undefined" && AchievementManager) {
+                AchievementManager.notifyEvent("export");
+            }
+        } catch (e) {
+            root.importStatusText = t("export_failed", "エクスポート失敗: ") + e;
+            root.importSuccess = false;
+        }
+        root.forceActiveFocus();
+    }
+
+    function importConversation() {
+        var filePath = ConversationIO.getOpenFileName(t("import_title", "会話記録ファイルを選択"), appDirPath, "JSON files (*.json)");
+        if (filePath === "") {
+            root.forceActiveFocus();
+            return;
+        }
+        try {
+            var json = ConversationIO.loadFromFile(filePath);
+            var data = JSON.parse(json);
+            if (!data.messages || !Array.isArray(data.messages)) {
+                root.importStatusText = t("import_invalid", "無効なファイル形式です");
+                root.importSuccess = false;
+                root.forceActiveFocus();
+                return;
+            }
+            if (root.chatPanelRef) {
+                root.chatPanelRef.conversationHistory = data.messages;
+                root.chatPanelRef.turnCount = data.turnCount || 0;
+                root.chatPanelRef.chatState = "inputReady";
+                root.chatPanelRef.currentEmotionTag = "NORMAL";
+                if (root.chatPanelRef.backLog) {
+                    root.chatPanelRef.backLog.clearLog();
+                    for (var i = 0; i < data.messages.length; i++) {
+                        var msg = data.messages[i];
+                        if (msg && msg.role !== "system") {
+                            var roleLower = msg.role.toLowerCase();
+                            if (roleLower === "assistant" || roleLower === "kurisu" || roleLower === "amadeus") {
+                                var segments = (typeof root.chatPanelRef.splitMessage === "function")
+                                    ? root.chatPanelRef.splitMessage(msg.content)
+                                    : [msg.content];
+                                for (var j = 0; j < segments.length; j++) {
+                                    root.chatPanelRef.backLog.addLog(msg.role, segments[j]);
+                                }
+                            } else {
+                                root.chatPanelRef.backLog.addLog(msg.role, msg.content);
+                            }
+                        }
+                    }
+                }
+            }
+            root.importStatusText = t("import_success", "インポート完了: ") + data.messages.length + t("import_turns", " ターン");
+            root.importSuccess = true;
+            if (typeof AchievementManager !== "undefined" && AchievementManager) {
+                AchievementManager.notifyEvent("import");
+            }
+        } catch (e) {
+            root.importStatusText = t("import_failed", "インポート失敗: ") + e;
+            root.importSuccess = false;
+        }
+        root.forceActiveFocus();
+    }
+
     // ─── Background ───
     Image {
         anchors.fill: parent
         source: "qrc:/qt/qml/RealAmadeusPC/resources/images/Amadeus_BG.png"
         fillMode: Image.Stretch
+    }
+
+    // Clicking empty areas restores keyboard focus to the panel root
+    MouseArea {
+        anchors.fill: parent
+        onClicked: root.forceActiveFocus()
     }
 
     // ─── Main Content Wrapper ───
@@ -469,6 +608,7 @@ Item {
                                 color: "#FFFFFF"
                                 font { family: root._fontFamily; pixelSize: 24; weight: Font.Light }
                                 verticalAlignment: Text.AlignVCenter
+                                horizontalAlignment: Text.AlignLeft
                                 elide: Text.ElideRight
                                 Connections {
                                     target: languageCombo
@@ -478,14 +618,15 @@ Item {
                                 }
                             }
                             delegate: ItemDelegate {
-                                width: languageCombo.width; height: 50
+                                width: languageCombo.width * languageCombo.popup.scaleFactor
+                                height: 50 * languageCombo.popup.scaleFactor
                                 background: Rectangle { color: highlighted ? "#111111" : "#1A1A1A" }
                                 contentItem: Text {
                                     text: styledLanguageName(modelData)
                                     textFormat: Text.RichText
                                     color: "#FFFFFF"
-                                    font { family: root._fontFamily; pixelSize: 24; weight: Font.Light }
-                                    verticalAlignment: Text.AlignVCenter; leftPadding: 12
+                                    font { family: root._fontFamily; pixelSize: 24 * languageCombo.popup.scaleFactor; weight: Font.Light }
+                                    verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignLeft; leftPadding: 12 * languageCombo.popup.scaleFactor
                                 }
                                 highlighted: languageCombo.highlightedIndex === index
                             }
@@ -493,6 +634,46 @@ Item {
                                 if (root.suppressLanguageCommit || !root.visible || currentIndex === -1) return;
                                 if (currentIndex !== AppSettings.getInt("Config_Language", 0)) {
                                     AppSettings.setInt("Config_Language", currentIndex);
+                                    AppSettings.save();
+                                }
+                            }
+                        } }
+                        ConfigRow { label: t("setting_chat_language", "会話言語"); ConfigComboBox {
+                            id: chatLanguageCombo; model: root.chatLanguageNames;
+                            contentItem: Text {
+                                id: chatLangComboText
+                                leftPadding: 12
+                                text: styledLanguageName(root.chatLanguageNames[chatLanguageCombo.currentIndex] || "")
+                                textFormat: Text.RichText
+                                color: "#FFFFFF"
+                                font { family: root._fontFamily; pixelSize: 24; weight: Font.Light }
+                                verticalAlignment: Text.AlignVCenter
+                                horizontalAlignment: Text.AlignLeft
+                                elide: Text.ElideRight
+                                Connections {
+                                    target: chatLanguageCombo
+                                    function onCurrentIndexChanged() {
+                                        chatLangComboText.text = styledLanguageName(root.chatLanguageNames[chatLanguageCombo.currentIndex] || "");
+                                    }
+                                }
+                            }
+                            delegate: ItemDelegate {
+                                width: chatLanguageCombo.width * chatLanguageCombo.popup.scaleFactor
+                                height: 50 * chatLanguageCombo.popup.scaleFactor
+                                background: Rectangle { color: highlighted ? "#111111" : "#1A1A1A" }
+                                contentItem: Text {
+                                    text: styledLanguageName(modelData)
+                                    textFormat: Text.RichText
+                                    color: "#FFFFFF"
+                                    font { family: root._fontFamily; pixelSize: 24 * chatLanguageCombo.popup.scaleFactor; weight: Font.Light }
+                                    verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignLeft; leftPadding: 12 * chatLanguageCombo.popup.scaleFactor
+                                }
+                                highlighted: chatLanguageCombo.highlightedIndex === index
+                            }
+                            onCurrentIndexChanged: {
+                                if (root.suppressLanguageCommit || !root.visible || currentIndex === -1) return;
+                                if (currentIndex !== AppSettings.getInt("Config_ChatLanguage", 0)) {
+                                    AppSettings.setInt("Config_ChatLanguage", currentIndex);
                                     AppSettings.save();
                                 }
                             }
@@ -513,6 +694,32 @@ Item {
                         ConfigSliderRow { id: textSpeedRow;  label: t("setting_text_speed", "文字表示速度"); sliderFrom: 0.1; sliderTo: 3.0; sliderStep: 0.1 }
                         ConfigRow { label: t("setting_auto_mode", "オート表示"); ConfigCheckBox { id: autoModeToggle } }
                         ConfigSliderRow { id: autoSpeedRow;  label: t("setting_auto_speed", "オート待機時間"); sliderFrom: 1.0; sliderTo: 10.0; sliderStep: 0.1; showAsSeconds: true }
+
+                        Rectangle { Layout.preferredHeight: 1; Layout.fillWidth: true; color: "#333333" }
+
+                        ConfigRow { label: t("setting_export_chat", "会話記録エクスポート")
+                            Rectangle {
+                                width: 200; height: 45; color: "#FF9900"
+                                Text { anchors.centerIn: parent; text: t("export", "書き出す"); color: "#FFF"; font { family: root._fontFamily; pixelSize: 24 } }
+                                MouseArea { anchors.fill: parent; onClicked: root.exportConversation() }
+                            }
+                        }
+                        ConfigRow { label: t("setting_import_chat", "会話記録インポート")
+                            Rectangle {
+                                width: 200; height: 45; color: "#4D4D4D"
+                                Text { anchors.centerIn: parent; text: t("import", "読み込む"); color: "#FFF"; font { family: root._fontFamily; pixelSize: 24 } }
+                                MouseArea { anchors.fill: parent; onClicked: root.importConversation() }
+                            }
+                        }
+                        Text {
+                            visible: root.importStatusText !== ""
+                            Layout.fillWidth: true
+                            text: root.importStatusText
+                            color: root.importSuccess ? "#00CC00" : "#FF4444"
+                            font { family: root._fontFamily; pixelSize: 20 }
+                            wrapMode: Text.WrapAnywhere
+                        }
+
                         Item { Layout.fillHeight: true }
                     }
 
@@ -689,6 +896,7 @@ Item {
             Layout.minimumWidth: 400
             Layout.maximumWidth: 400
             Layout.alignment: Qt.AlignVCenter
+            horizontalAlignment: Text.AlignLeft
         }
         Item {
             id: holder
@@ -718,7 +926,7 @@ Item {
 
         MouseArea {
             anchors.fill: parent
-            onClicked: checkRoot.checked = !checkRoot.checked
+            onClicked: { checkRoot.checked = !checkRoot.checked; root.forceActiveFocus(); }
         }
     }
 
@@ -752,6 +960,7 @@ Item {
             Layout.minimumWidth: 400
             Layout.maximumWidth: 400
             Layout.alignment: Qt.AlignVCenter
+            horizontalAlignment: Text.AlignLeft
         }
 
         // Custom-rendered slider (300×20)
@@ -845,6 +1054,7 @@ Item {
             color: "#FFFFFF"
             font { family: root._fontFamily; pixelSize: 24; weight: Font.Light }
             verticalAlignment: Text.AlignVCenter
+            horizontalAlignment: Text.AlignLeft
             elide: Text.ElideRight
         }
 
@@ -868,11 +1078,27 @@ Item {
         }
 
         popup: Popup {
-            y: comboRoot.height; width: comboRoot.width
-            implicitHeight: Math.min(contentItem.implicitHeight, comboRoot.popupMaxHeight); padding: 1
+            id: comboPopup
+            parent: Overlay.overlay
+            readonly property real scaleFactor: Math.min(mainWindow.width / 1920.0, mainWindow.height / 1080.0)
+            x: 0
+            y: 0
+            width: comboRoot.width * scaleFactor
+            implicitHeight: (comboRoot.count * 50 + 2) * scaleFactor
+            padding: 1 * scaleFactor
             focus: false
 
-            background: Rectangle { color: "#1A1A1A"; border.color: "#333333"; border.width: 1 }
+            onAboutToShow: {
+                var pt = comboRoot.mapToItem(null, 0, comboRoot.height);
+                x = pt.x;
+                y = pt.y;
+            }
+
+            background: Rectangle {
+                color: "#1A1A1A"
+                border.color: "#333333"
+                border.width: 1 * comboPopup.scaleFactor
+            }
 
             contentItem: ListView {
                 focus: false
@@ -894,14 +1120,15 @@ Item {
         }
 
         delegate: ItemDelegate {
-            width: comboRoot.width; height: 50
+            width: comboRoot.width * comboPopup.scaleFactor
+            height: 50 * comboPopup.scaleFactor
             background: Rectangle { color: highlighted ? "#111111" : "#1A1A1A" }
             contentItem: Text {
                 text: styledText(modelData)
                 textFormat: Text.StyledText
                 color: "#FFFFFF"
-                font { family: root._fontFamily; pixelSize: 24; weight: Font.Light }
-                verticalAlignment: Text.AlignVCenter; leftPadding: 12
+                font { family: root._fontFamily; pixelSize: 24 * comboPopup.scaleFactor; weight: Font.Light }
+                verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignLeft; leftPadding: 12 * comboPopup.scaleFactor
             }
             highlighted: comboRoot.highlightedIndex === index
         }
@@ -915,6 +1142,17 @@ Item {
         color: "#FFFFFF"
         font { family: root._fontFamily; pixelSize: 24; weight: Font.Light }
         verticalAlignment: Text.AlignVCenter; leftPadding: 12
+
+        onActiveFocusChanged: {
+            if (!activeFocus) root.forceActiveFocus()
+        }
+
+        Keys.onPressed: (event) => {
+            if (event.key === Qt.Key_Escape) {
+                root.forceActiveFocus()
+                event.accepted = true
+            }
+        }
 
         background: Rectangle {
             color: "#1A1A1A"

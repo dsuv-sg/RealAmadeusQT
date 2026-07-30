@@ -9,6 +9,8 @@
 #include <QOpenGLFunctions>
 #include <QQuickWindow>
 
+#include <memory>
+
 namespace {
 
 static QString ResolveModelDirectory(const QString& modelPath) {
@@ -34,7 +36,7 @@ static QString ResolveModelDirectory(const QString& modelPath) {
 class Live2DRenderer final : public QQuickFramebufferObject::Renderer, protected QOpenGLFunctions {
 public:
     Live2DRenderer()
-        : m_model(new AmadeusLive2DModel()),
+        : m_model(std::make_unique<AmadeusLive2DModel>()),
           m_glReady(false),
           m_lipSyncValue(0.0f),
           m_lightweightMode(false),
@@ -43,9 +45,7 @@ public:
         m_timer.start();
     }
 
-    ~Live2DRenderer() override {
-        delete m_model;
-    }
+    ~Live2DRenderer() override = default;
 
     QOpenGLFramebufferObject* createFramebufferObject(const QSize& size) override {
         QOpenGLFramebufferObjectFormat format;
@@ -116,7 +116,7 @@ public:
     }
 
 private:
-    AmadeusLive2DModel* m_model;
+    std::unique_ptr<AmadeusLive2DModel> m_model;
     bool m_glReady;
     QString m_modelDir;
     QString m_emotion;

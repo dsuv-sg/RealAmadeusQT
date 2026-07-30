@@ -13,7 +13,9 @@ MemoryManager::MemoryManager(QObject *parent)
     : QObject(parent)
 {
     QString dataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    QDir().mkpath(dataPath);
+    if (!QDir().mkpath(dataPath)) {
+        qWarning() << "[MemoryManager] Failed to create data directory:" << dataPath;
+    }
     m_savePath = dataPath + "/kurisu_memory.json";
     loadMemory();
 }
@@ -102,7 +104,8 @@ void MemoryManager::recordEmotion(const QString &emotion)
 
     QJsonArray arr = m_memory.value("recentEmotions").toArray();
     arr.append(emotion);
-    while (arr.size() > EMOTION_HISTORY_SIZE) arr.removeAt(0);
+    if (arr.size() > EMOTION_HISTORY_SIZE)
+        arr = QJsonArray::fromVariantList(arr.toVariantList().mid(arr.size() - EMOTION_HISTORY_SIZE));
     m_memory["recentEmotions"] = arr;
 }
 

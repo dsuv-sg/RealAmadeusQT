@@ -150,7 +150,7 @@ Item {
         anchors { top: parent.top; topMargin: 20 }
         // Unity: center.x = parentCenter.x + 600 = 960 + 600 = 1560
         // rect left = 1560 - 910 = 650
-        x: 650
+        anchors { left: parent.left; leftMargin: 650 }
         width: 1820; height: 80
         text: clockTimer.clockTextValue
         color: "#FFFFFF"
@@ -176,7 +176,7 @@ Item {
             spacing: 65
 
             // Row_SYSTEM_VERSION (HLG spacing=20, label minWidth=250, value flex=1)
-            StatusRow { label: "SYSTEM_VERSION"; value: "Real Amadeus v1.3Q(Build 20260616_001)" }
+            StatusRow { label: "SYSTEM_VERSION"; value: "Real Amadeus v1.4Q(Build 20260730_001)" }
             // Row_LIVE2D_MODEL
             StatusRow { label: "LIVE2D_MODEL"; value: "Live2DKurisu v1.0" }
             // Row_OPERATOR
@@ -209,6 +209,54 @@ Item {
                 }
             }
         }
+
+        // ─── RightCol: Achievements (same style as StatusRow) ───
+        Item {
+            id: achievementRow
+            anchors { right: parent.right; top: parent.top }
+            width: 700; height: 50
+
+            Row {
+                anchors.fill: parent
+                spacing: 20
+
+                Text {
+                    text: "ACHIEVEMENTS"
+                    color: achievementMouse.containsMouse ? "#FFB84D" : "#FF9900"
+                    font { family: "MS Mincho"; pixelSize: 32 }
+                    width: 250; height: parent.height
+                    verticalAlignment: Text.AlignVCenter
+                    horizontalAlignment: Text.AlignLeft
+                }
+                Text {
+                    text: {
+                        if (typeof AchievementManager !== "undefined" && AchievementManager)
+                            return "★ " + AchievementManager.unlockedCount + " / " + AchievementManager.totalCount;
+                        return "---";
+                    }
+                    color: achievementMouse.containsMouse ? "#FFD9A0" : "#FFFFFF"
+                    font { family: "MS Mincho"; pixelSize: 32 }
+                    height: parent.height
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+
+            Rectangle {
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                height: 1
+                color: "#FF9900"
+                opacity: achievementMouse.containsMouse ? 0.6 : 0
+                Behavior on opacity { NumberAnimation { duration: 150 } }
+            }
+
+            MouseArea {
+                id: achievementMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: { achievementPanelLoader.visible = true; achievementPanelLoader.forceActiveFocus(); }
+            }
+        }
     }
 
     // ─── Credits ───
@@ -216,12 +264,21 @@ Item {
     Text {
         anchors { left: parent.left; leftMargin: 50; bottom: parent.bottom; bottomMargin: 10 }
         width: 1820
-        text: "Provided by ELVELT/Real Amadeus Project\nDeveloped by DSUV\nDesigned by DSUV/Amane\nTranslated with assistance by Dezpot\nThis project is a derivative work of Steins;Gate 0\nVersion 1.3Q(Build 20260616_001)"
+        text: "Provided by ELVELT/Real Amadeus Project\nDeveloped by DSUV\nDesigned by DSUV/Amane\nTranslated with assistance by Dezpot\nSupported by Elis=Bellmaret/Kaavkap/EarthenSpire/ハルヲ/Aias23\nThis project is a derivative work of Steins;Gate 0\nVersion 1.4Q(Build 20260730_001)"
         color: "#808080"
         font { family: "MS Mincho"; pixelSize: 24 }
         horizontalAlignment: Text.AlignLeft
         verticalAlignment: Text.AlignBottom
         lineHeight: 1.0
+    }
+
+    // ─── Achievement Panel (opened from ACHIEVEMENTS row) ───
+    AchievementPanel {
+        id: achievementPanelLoader
+        anchors.fill: parent
+        visible: false
+        z: 10
+        onClosed: { root.forceActiveFocus(); }
     }
 
     // ─── Clock timer ───
@@ -320,6 +377,7 @@ Item {
                 width: 250
                 height: parent.height
                 verticalAlignment: Text.AlignVCenter
+                horizontalAlignment: Text.AlignLeft
                 clip: true
             }
             Text {
@@ -330,6 +388,7 @@ Item {
                 width: parent.width - 250 - 20
                 height: parent.height
                 verticalAlignment: Text.AlignVCenter
+                horizontalAlignment: Text.AlignLeft
                 //fontSizeMode: Text.HorizontalFit
                 minimumPixelSize: 18
                 //clip: true

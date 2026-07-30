@@ -57,14 +57,13 @@ private:
     QString runGcloudAccessToken(const QString &gcloudPath) const;
 
     // ─── SSE streaming processor ───
-    void processSSEData(const QByteArray &data, QByteArray &buffer,
+    void processSSEData(const QByteArray &data,
                         QString &fullResponse, bool &done);
 
     QNetworkAccessManager m_nam;
-    QByteArray m_streamBuffer; // for streaming reply
     QString m_cachedVertexToken;
     QDateTime m_vertexTokenExpiry;
-    QSettings m_settings;
+    mutable QSettings m_settings;
     mutable QMutex m_settingsMutex;
     mutable QMutex m_tokenMutex;
 

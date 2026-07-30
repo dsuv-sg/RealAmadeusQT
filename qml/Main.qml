@@ -47,17 +47,24 @@ ApplicationWindow {
         var screenMode = AppSettings.getInt("Config_ScreenMode", 1);
         // 0 = Fullscreen, 1 = Windowed
         if (screenMode === 0) {
+            mainWindow.minimumWidth = 0;
+            mainWindow.maximumWidth = 16777215;
+            mainWindow.minimumHeight = 0;
+            mainWindow.maximumHeight = 16777215;
             mainWindow.visibility = Window.FullScreen;
         } else {
             mainWindow.visibility = Window.Windowed;
-        }
 
-        // Apply resolution (only when not fullscreen)
-        var resIdx = AppSettings.getInt("Config_Resolution", 0);
-        var w = 1920, h = 1080;
-        if (resIdx === 1) { w = 1600; h = 900; }
-        else if (resIdx === 2) { w = 1280; h = 720; }
-        if (screenMode !== 0) {
+            // Apply resolution (only when not fullscreen)
+            var resIdx = AppSettings.getInt("Config_Resolution", 0);
+            var w = 1920, h = 1080;
+            if (resIdx === 1) { w = 1600; h = 900; }
+            else if (resIdx === 2) { w = 1280; h = 720; }
+
+            mainWindow.minimumWidth = w;
+            mainWindow.maximumWidth = w;
+            mainWindow.minimumHeight = h;
+            mainWindow.maximumHeight = h;
             mainWindow.width = w;
             mainWindow.height = h;
             Qt.callLater(mainWindow.centerWindow);
@@ -239,6 +246,7 @@ ApplicationWindow {
             height: 1080
             z: 99
             backLog: mainBackLog
+            chatPanelRef: systemPanel.chatPanel
             isLoggedIn: mainWindow.appState !== "login"
             configLanguage: mainWindow.configLanguage
             onCloseMenuRequested: mainWindow.isTabActive = false

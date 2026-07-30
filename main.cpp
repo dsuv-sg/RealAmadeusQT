@@ -14,6 +14,9 @@
 #include "src/notificationservice.h"
 #include "src/updatemanager.h"
 #include "src/localizationmanager.h"
+#include "src/achievementmanager.h"
+#include "src/conversationio.h"
+#include "src/randomeventservice.h"
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
 #include <QNetworkReply>
@@ -85,16 +88,23 @@ int main(int argc, char *argv[])
 
     QApplication app(argc, argv);
     QString appDir = QCoreApplication::applicationDirPath();
-    QFontDatabase::addApplicationFont(appDir + "/resources/fonts/NotoSerifCJKkr-Regular.otf");
-    QFontDatabase::addApplicationFont(appDir + "/resources/fonts/NotoSerifCJKsc-Regular.otf");
-    QFontDatabase::addApplicationFont(appDir + "/resources/fonts/NotoSerifCJKtc-Regular.otf");
-    QFontDatabase::addApplicationFont(appDir + "/resources/fonts/NotoSerifCJKhk-Regular.otf");
-    QFontDatabase::addApplicationFont(appDir + "/resources/fonts/NotoSerifCJK-Regular.ttc");
-    QFontDatabase::addApplicationFont(appDir + "/resources/fonts/NotoSerifCJK-ExtraLight.ttc");
-    QFontDatabase::addApplicationFont(appDir + "/resources/fonts/NotoSerifCJK-Light.ttc");
-    QFontDatabase::addApplicationFont(appDir + "/resources/fonts/NotoSerif-Regular.ttf");
-    QFontDatabase::addApplicationFont(appDir + "/resources/fonts/NotoSerif-ExtraLight.ttf");
-    QFontDatabase::addApplicationFont(appDir + "/resources/fonts/NotoSerif-Light.ttf");
+    const QStringList fontFiles = {
+        "/resources/fonts/NotoSerifCJKkr-Regular.otf",
+        "/resources/fonts/NotoSerifCJKsc-Regular.otf",
+        "/resources/fonts/NotoSerifCJKtc-Regular.otf",
+        "/resources/fonts/NotoSerifCJKhk-Regular.otf",
+        "/resources/fonts/NotoSerifCJK-Regular.ttc",
+        "/resources/fonts/NotoSerifCJK-ExtraLight.ttc",
+        "/resources/fonts/NotoSerifCJK-Light.ttc",
+        "/resources/fonts/NotoSerif-Regular.ttf",
+        "/resources/fonts/NotoSerif-ExtraLight.ttf",
+        "/resources/fonts/NotoSerif-Light.ttf"
+    };
+    for (const QString &f : fontFiles) {
+        int id = QFontDatabase::addApplicationFont(appDir + f);
+        if (id < 0)
+            qWarning() << "[Font] Failed to load:" << f;
+    }
     // Check if MS Mincho is already in the system
     bool hasMSMincho = false;
     {
@@ -148,6 +158,10 @@ int main(int argc, char *argv[])
     NotificationService notificationService;
     UpdateManager updateManager;
     LocalizationManager localization(&settings);
+    AchievementManager achievementManager(&localization);
+    ConversationIO conversationIO;
+    RandomEventService randomEventService;
+    randomEventService.setLocalizationManager(&localization);
 
     QQmlApplicationEngine engine;
 
@@ -157,6 +171,9 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("NotificationService", &notificationService);
     engine.rootContext()->setContextProperty("UpdateManager",  &updateManager);
     engine.rootContext()->setContextProperty("Localization",   &localization);
+    engine.rootContext()->setContextProperty("AchievementManager", &achievementManager);
+    engine.rootContext()->setContextProperty("ConversationIO", &conversationIO);
+    engine.rootContext()->setContextProperty("RandomEventService", &randomEventService);
     engine.rootContext()->setContextProperty("appDirPath",     QCoreApplication::applicationDirPath());
     qmlRegisterType<Live2DItem>("Amadeus.Live2D", 1, 0, "Live2DItem");
 

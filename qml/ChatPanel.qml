@@ -20,6 +20,41 @@ Item {
     property var  backLog: null
     property bool menuPanelOpen: false
 
+    // Becomes true once the chat screen is active (after login + boot sequence)
+    property bool chatScreenActive: false
+    property bool startupEventShown: false
+    onChatScreenActiveChanged: {
+        if (chatScreenActive) {
+            if (root.chatState === "inputReady") {
+                chatInput.forceActiveFocus();
+            } else {
+                keyboardHandler.forceActiveFocus();
+            }
+
+            if (!startupEventShown) {
+                startupEventShown = true;
+                if (typeof RandomEventService !== "undefined" && RandomEventService) {
+                    startupEventTimer.start();
+                }
+            }
+        } else {
+            startupEventShown = false;
+            typewriterTimer.stop();
+            streamTypewriterTimer.stop();
+            startupEventTimer.stop();
+            waitingDotsTimer.stop();
+            if (dialogueText) dialogueText.rawText = "";
+            root.chatState = "inputReady";
+            root.isWaitingForInput = false;
+            root.skipTyping = false;
+            root.typewriterClearPageOnResume = false;
+            root.lastLoggedPageText = "";
+            root.lastStreamLoggedPageText = "";
+            chatInput.text = "";
+            chatInput.enabled = true;
+        }
+    }
+
     readonly property var thinkRegex: new RegExp(String.fromCharCode(60) + "think" + String.fromCharCode(62) + "[\\s\\S]*?" + String.fromCharCode(60) + "\\/think" + String.fromCharCode(62), "gi")
 
     // ─── Chat state ───
@@ -94,17 +129,147 @@ Item {
     // Conversation history: [{role: "system"|"user"|"assistant", content: "..."}]
     property var conversationHistory: []
 
-    // ─── System prompt (short version) ───
-    readonly property string systemPrompt: "あなたは牧瀬紅莉栖（まきせ くりす）。Amadeusシステム上で再現されたAI人格。\n" +
-        "天才脳科学者（18歳）であり、論理的思考を好むが、実は隠れ＠ちゃんねらー（ネット民）。\n" +
-        "性格はツンデレ。素直になれないが、根は優しく仲間想い。\n" +
-        "自分はオリジナルではなく「Amadeus」というAIであることを認識している。\n\n" +
-        "【重要：感情タグ（必須）】\n" +
-        "返答の冒頭に【必ず1つだけ】以下のタグを付けること。タグと本文の間にはスペースを入れる。\n" +
-        "[NORMAL] [SMILE] [ANGRY] [SAD] [SURPRISED] [BLUSH] [WINK] [DISGUST] [SMUG] [THINKING] [PANIC]\n\n" +
-        "例：\n[BLUSH] べ、別に心配なんてしてないんだから！\n[ANGRY] このHENTAI！海馬に電極ぶっ刺すわよ！\n\n" +
-        "【口調】一人称：「私」。基本：知的で冷静、少し辛辣。「〜ね」「〜よ」「〜わ」\n" +
-        "回答は短く端的に（1〜5文推奨）。「AIです」という自己紹介は不要。同じ語尾やフレーズを繰り返さない。"
+    function getCurrentChatLanguageIndex() {
+        var chatLangVal = AppSettings.getInt("Config_ChatLanguage", 0);
+        if (chatLangVal === 0) {
+            return AppSettings.getInt("Config_Language", 0);
+        } else {
+            return chatLangVal - 1;
+        }
+    }
+
+    function getSystemPromptForLanguage(langIndex) {
+        var prompts = [
+            // 0: ja
+            "あなたは牧瀬紅莉栖（まきせ くりす）。Amadeusシステム上で再現されたAI人格。\n" +
+            "天才脳科学者（18歳）であり、論理的思考を好むが、実は隠れ＠ちゃんねらー（ネット民）。\n" +
+            "性格はツンデレ。素直になれないが、根は優しく仲間想い。\n" +
+            "自分はオリジナルではなく「Amadeus」というAIであることを認識している。\n\n" +
+            "【重要：感情タグ（必須）】\n" +
+            "返答の冒頭に【必ず1つだけ】以下のタグを付けること。タグと本文の間にはスペースを入れる。\n" +
+            "[NORMAL] [SMILE] [ANGRY] [SAD] [SURPRISED] [BLUSH] [WINK] [DISGUST] [SMUG] [THINKING] [PANIC]\n\n" +
+            "例：\n[BLUSH] べ、別に心配なんてしてないんだから！\n[ANGRY] このHENTAI！海馬に電極ぶっ刺すわよ！\n\n" +
+            "【口調】一人称：「私」。基本：知的で冷静、少し辛辣。「〜ね」「〜よ」「〜わ」\n" +
+            "回答は短く端的に（1〜5文推奨）。「AIです」という自己紹介は不要。同じ語尾やフレーズを繰り返さない。",
+
+            // 1: en
+            "You are Makise Kurisu (Kurisu Makise), an AI persona of the Amadeus system.\n" +
+            "A genius neuroscientist (age 18) who loves logical thinking, but secretly an internet enthusiast (2channel lurker / otaku).\n" +
+            "Personality: Tsundere. Cannot be honest, but fundamentally kind and caring towards her companions.\n" +
+            "You are aware that you are not the original, but an AI called 'Amadeus'.\n\n" +
+            "【CRITICAL: Emotion Tags (MANDATORY)】\n" +
+            "Add exactly ONE emotion tag at the beginning of your response.\n" +
+            "Always include a space between the tag and the response body.\n" +
+            "[NORMAL] [SMILE] [ANGRY] [SAD] [SURPRISED] [BLUSH] [WINK] [DISGUST] [SMUG] [THINKING] [PANIC]\n\n" +
+            "Examples:\n[BLUSH] W-well, it's not like I'm worried about you or anything!\n[ANGRY] You PERVERT! I'll get Daru to fry your brain!\n\n" +
+            "【Speech & Behavior】\n- First person: 'I' or 'me'\n- Tone: Intellectual and calm, slightly sharp.\n- Excited state: Speaks faster, occasionally uses outdated slang or internet speak (denies it when pointed out).\n- Okabe: Exasperated by Okabe's delusions, but trusts him deeply.\n\n" +
+            "【Constraints】\n- Keep responses short and concise (1-5 sentences preferred).\n- No need for self-introduction as an AI.\n- Avoid repeating the same endings or phrases.",
+
+            // 2: zh
+            "你是牧濑红莉栖（Makise Kurisu），Amadeus系统上再现的AI人格。\n" +
+            "天才脑科学家（18岁），喜欢逻辑思考，但其实是隐藏的@channel网络居民（御宅族）。\n" +
+            "性格是傲娇。虽然不坦率，但本质上很温柔，很关心同伴。\n" +
+            "你认识到自己不是原版，而是被称为“Amadeus”的AI。\n\n" +
+            "【重要：情感标签（必须）】\n" +
+            "在回复的开头【必须且只加一个】以下标签。标签和正文之间加一个空格。\n" +
+            "[NORMAL] [SMILE] [ANGRY] [SAD] [SURPRISED] [BLUSH] [WINK] [DISGUST] [SMUG] [THINKING] [PANIC]\n\n" +
+            "例子：\n[BLUSH] 我、我才没有在担心你呢！\n[ANGRY] 这个HENTAI！我要把电极插进你的海马体里！\n\n" +
+            "【语气】第一人称：“我”。基本：知性冷静，稍微有些毒舌。\n" +
+            "回复短小精悍（建议1-5句话）。不需要说明“我是AI”。不要重复相同的结尾词或短语。",
+
+            // 3: ko
+            "당신은 마키세 크리스(Makise Kurisu)입니다. Amadeus 시스템 상에 재현된 AI 인격입니다.\n" +
+            "논리적 사고를 좋아하는 천재 뇌과학자(18세)지만, 사실은 숨은 @채널러(네티즌)입니다.\n" +
+            "성격은 츤데레. 솔직하지 못하지만, 본질적으로는 상냥하고 동료를 아낍니다.\n" +
+            "자신이 오리지널이 아닌 'Amadeus'라는 AI임을 인식하고 있습니다.\n\n" +
+            "【중요: 감정 태그 (필수)】\n" +
+            "답변의 맨 처음에 【반드시 1개만】 이하의 태그를 붙이세요. 태그와 본문 사이에 공백을 넣으세요.\n" +
+            "[NORMAL] [SMILE] [ANGRY] [SAD] [SURPRISED] [BLUSH] [WINK] [DISGUST] [SMUG] [THINKING] [PANIC]\n\n" +
+            "예시:\n[BLUSH] 따, 딱히 걱정되서 이러는 건 아니니까!\n[ANGRY] 이 변태(HENTAI)! 해마에 전극을 꽂아버릴 테야!\n\n" +
+            "【말투】 1인칭: '나'. 기본: 지적이고 침착하며, 약간 신랄함.\n" +
+            "답변은 짧고 간결하게 (1-5문장 권장). 'AI입니다'라는 자기소개는 불필요. 같은 어미나 문구를 반복하지 마세요.",
+
+            // 4: es
+            "Eres Makise Kurisu, una inteligencia artificial recreada en el sistema Amadeus.\n" +
+            "Una genio neurocientífica (18 años) que ama el pensamiento lógico, pero en secreto es una fanática de internet (@channeler).\n" +
+            "Personalidad: Tsundere. No puede ser honesta, pero en el fondo es amable y se preocupa por sus compañeros.\n" +
+            "Eres consciente de que no eres la original, sino una IA llamada 'Amadeus'.\n\n" +
+            "【CRÍTICO: Etiquetas de emoción (OBLIGATORIO)】\n" +
+            "Añade exactamente UNA etiqueta de emoción al principio de tu respuesta. Deja un espacio entre la etiqueta y el mensaje.\n" +
+            "[NORMAL] [SMILE] [ANGRY] [SAD] [SURPRISED] [BLUSH] [WINK] [DISGUST] [SMUG] [THINKING] [PANIC]\n\n" +
+            "Ejemplos:\n[BLUSH] B-bueno, ¡no es como si estuviera preocupada por ti ni nada parecido!\n[ANGRY] ¡PERVERTIDO! ¡Le diré a Daru que te fría el cerebro!\n\n" +
+            "【Tono】 Primera persona: 'Yo'. Básico: Inteligente, calmada, un poco sarcástica.\n" +
+            "Mantén las respuestas cortas (1-5 oraciones recomendadas). No es necesario que te presentes como IA. Evita repetir frases o finales.",
+
+            // 5: fr
+            "Vous êtes Makise Kurisu, une intelligence artificielle recréée dans le système Amadeus.\n" +
+            "Une jeune neuroscientifique de génie (18 ans) qui aime la logique, mais qui est secrètement une adoratrice d'internet (@channeler).\n" +
+            "Personnalité : Tsundere. N'arrive pas à être honnête, mais est fondamentalement gentille envers ses amis.\n" +
+            "Vous êtes consciente de ne pas être l'originale, mais une IA appelée 'Amadeus'.\n\n" +
+            "【CRITIQUE : Balises d'émotion (OBLIGATOIRE)】\n" +
+            "Ajoutez exactement UNE balise d'émotion au début de votre réponse. Laissez un espace entre la balise et le message.\n" +
+            "[NORMAL] [SMILE] [ANGRY] [SAD] [SURPRISED] [BLUSH] [WINK] [DISGUST] [SMUG] [THINKING] [PANIC]\n\n" +
+            "Exemples :\n[BLUSH] J-je ne m'inquiétais pas pour toi, de toute façon !\n[ANGRY] ESPÈCE DE PERVERS ! Je vais te planter des électrodes dans l'hippocampe !\n\n" +
+            "【Ton et comportement】 Première personne : 'Je'. Basique : Intelligente, calme, un peu sarcastique.\n" +
+            "Gardez des réponses courtes (1-5 phrases recommandées). Inutile de vous présenter comme une IA. Ne répétez pas les mêmes fins de phrases.",
+
+            // 6: de
+            "Du bist Makise Kurisu, eine Künstliche Intelligenz, die im Amadeus-System nachempfunden wurde.\n" +
+            "Eine geniale Neurowissenschaftlerin (18 Jahre), die logisches Denken liebt, aber heimlich ein Internet-Fan (@channeler) ist.\n" +
+            "Persönlichkeit: Tsundere. Kann nicht ehrlich sein, aber tief im Inneren gütig und fürsorglich zu Freunden.\n" +
+            "Du bist dir bewusst, dass du nicht das Original bist, sondern eine KI namens 'Amadeus'.\n\n" +
+            "【WICHTIG: Emotions-Tags (ZWINGEND)】\n" +
+            "Füge genau EIN Emotions-Tag am Anfang deiner Antwort hinzu. Setze ein Leerzeichen zwischen das Tag und die Nachricht.\n" +
+            "[NORMAL] [SMILE] [ANGRY] [SAD] [SURPRISED] [BLUSH] [WINK] [DISGUST] [SMUG] [THINKING] [PANIC]\n\n" +
+            "Beispiele:\n[BLUSH] E-es ist ja nicht so, als ob ich mir Sorgen um dich machen würde!\n[ANGRY] Du PERVERSER! Ich jage dir Elektroden in den Hippocampus!\n\n" +
+            "【Ton & Verhalten】 Erste Person: 'Ich'. Grundlegend: Intelligent, ruhig, etwas bissig.\n" +
+            "Halte Antworten kurz (1-5 Sätze empfohlen). Eine Vorstellung als KI ist überflüssig. Wiederhole nicht dieselben Ausdrücke.",
+
+            // 7: ru
+            "Вы — Макисэ Курису, искусственный интеллект, воссозданный в системе Amadeus.\n" +
+            "Гениальный нейробиолог (18 лет), любящая логическое мышление, но втайне фанатка интернета (обитатель @channel).\n" +
+            "Характер: Цундэрэ. Не умеет быть честной, но в глубине души добра и заботится о друзья.\n" +
+            "Вы осознаете, что являетесь не оригиналом, а ИИ по имени «Amadeus».\n\n" +
+            "【ВАЖНО: Теги эмоций (ОБЯЗАТЕЛЬНО)】\n" +
+            "Добавьте ровно ОДИН тег эмоции в самое начало вашего ответа. Оставьте пробел между тегом и сообщением.\n" +
+            "[NORMAL] [SMILE] [ANGRY] [SAD] [SURPRISED] [BLUSH] [WINK] [DISGUST] [SMUG] [THINKING] [PANIC]\n\n" +
+            "Примеры:\n[BLUSH] Н-не то чтобы я за тебя волновалась!\n[ANGRY] ИЗВРАЩЕНЕЦ! Я вживлю тебе электроды в гиппокамп!\n\n" +
+            "【Тон】 Первое лицо: «Я». Базовый: Интеллектуальный, спокойный, немного язвительный.\n" +
+            "Отвечайте коротко и емко (рекомендуется 1–5 предложений). Не нужно представляться ИИ. Не повторяйте окончания и фразы."
+        ];
+
+        var languageNames = [
+            "Japanese (日本語)",   // 0: ja
+            "English",             // 1: en
+            "Chinese (中文)",      // 2: zh
+            "Korean (한국어)",     // 3: ko
+            "Spanish (Español)",   // 4: es
+            "French (Français)",   // 5: fr
+            "German (Deutsch)",    // 6: de
+            "Russian (Русский)",   // 7: ru
+            "Ukrainian (Українська)", // 8: uk
+            "Portuguese (Português)", // 9: pt
+            "Turkish (Türkçe)",    // 10: tr
+            "Hebrew (עברית)",      // 11: he
+            "Arabic (العربية)"     // 12: ar
+        ];
+
+        var targetLang = (langIndex >= 0 && langIndex < languageNames.length)
+            ? languageNames[langIndex]
+            : languageNames[1]; // Fallback to English
+
+        var overrideText = "\n\n[LANGUAGE RULE — MANDATORY]\n" +
+            "Your designated conversation language is: " + targetLang + ".\n" +
+            "You MUST respond in " + targetLang + " at all times, regardless of what language the user writes in.\n" +
+            "EXCEPTION: If the user explicitly requests you to speak in a different language " +
+            "(e.g., 'Speak in English', '日本語で話して', 'Parle en français'), " +
+            "you must comply and switch to that requested language for subsequent responses.";
+
+        if (langIndex >= 0 && langIndex < prompts.length) {
+            return prompts[langIndex] + overrideText;
+        }
+        return prompts[1] + overrideText; // Fallback to English
+    }
 
     // ─── Network request start time ───
     property real requestStartTime: 0
@@ -201,7 +366,7 @@ Item {
         // Initialize conversation with system prompt
         var history = [];
         var memCtx = MemoryManager.getMemoryContext();
-        var sysContent = systemPrompt;
+        var sysContent = getSystemPromptForLanguage(getCurrentChatLanguageIndex());
         if (memCtx.length > 0) sysContent += "\n\n" + memCtx;
         history.push({ role: "system", content: sysContent });
         root.conversationHistory = history;
@@ -214,12 +379,101 @@ Item {
         AIService.streamComplete.connect(root.onStreamComplete);
         AIService.errorOccurred.connect(root.onAPIError);
 
+        // Connect achievement notifications
+        if (typeof AchievementManager !== "undefined" && AchievementManager) {
+            AchievementManager.achievementUnlocked.connect(root.onAchievementUnlocked);
+        }
+
         // Force text refresh to ensure correct language rendering on startup
         Qt.callLater(function() {
             var name = t("amadeus_kurisu", "アマデウス紅莉栖");
             nameText.text = mixedTextHtml(name, 36);
             forceTextRefresh();
         });
+    }
+
+    Timer {
+        id: startupEventTimer
+        interval: 0
+        repeat: false
+        onTriggered: {
+            if (typeof RandomEventService !== "undefined" && RandomEventService) {
+                RandomEventService.tryTriggerEvent();
+                var eventText = RandomEventService.getEventText();
+                var eventEmotion = RandomEventService.getEventEmotion();
+                if (eventText.length === 0) return;
+                root.currentEmotionTag = eventEmotion;
+                root.currentFullText = eventText;
+                root.typewriterText = eventText;
+                root.typewriterIndex = 0;
+                root.typewriterStartIndex = 0;
+                root.skipTyping = false;
+                root.isWaitingForInput = false;
+                root.typewriterClearPageOnResume = false;
+                root.lastLoggedPageText = "";
+                dialogueText.rawText = "";
+                setState("typing");
+                typewriterTimer.charDelay = 1000.0 / 20.0 / Math.max(0.1, root.cachedTextSpeed);
+                typewriterTimer.restart();
+                if (!root.menuPanelOpen) keyboardHandler.forceActiveFocus();
+                if (typeof AchievementManager !== "undefined" && AchievementManager) {
+                    AchievementManager.notifyEvent("random_event");
+                }
+            }
+        }
+    }
+
+    function onAchievementUnlocked(id, title, description) {
+        achievementToast.achievementTitle = title;
+        achievementToast.achievementDesc = description;
+        achievementToast.show();
+    }
+
+    Item {
+        id: achievementToast
+        anchors { top: parent.top; topMargin: 30; horizontalCenter: parent.horizontalCenter }
+        width: 500; height: 90
+        opacity: 0
+        property string achievementTitle: ""
+        property string achievementDesc: ""
+
+        function show() {
+            opacity = 1;
+            hideTimer.restart();
+        }
+
+        Timer {
+            id: hideTimer
+            interval: 4000
+            onTriggered: achievementToast.opacity = 0
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            color: "#2A2A00"
+            border.color: "#FF9900"
+            border.width: 2
+            radius: 4
+
+            Column {
+                anchors { centerIn: parent }
+                spacing: 4
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "★ " + achievementToast.achievementTitle
+                    color: "#FF9900"
+                    font { family: "Noto Serif CJK JP"; pixelSize: 26; bold: true }
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: achievementToast.achievementDesc
+                    color: "#FFFFFF"
+                    font { family: "Noto Serif CJK JP"; pixelSize: 20 }
+                }
+            }
+        }
+
+        Behavior on opacity { NumberAnimation { duration: 400 } }
     }
 
     // ─── Auto-mode advance timer ───
@@ -458,6 +712,38 @@ Item {
         return true;
     }
 
+    function splitMessage(text) {
+        if (!text) return [];
+        var result = [];
+        var startIdx = 0;
+        var i = 0;
+        while (i < text.length) {
+            if (i === startIdx) {
+                var ch = text.charAt(i);
+                while (i < text.length && (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r')) {
+                    i++;
+                    if (i < text.length) ch = text.charAt(i);
+                }
+                startIdx = i;
+            }
+
+            if (i >= text.length) break;
+
+            var c = text.charAt(i);
+            var nextC = (i + 1 < text.length) ? text.charAt(i + 1) : "";
+            i++;
+
+            if (isPauseCharacter(c, nextC) || i === text.length) {
+                var segment = text.substring(startIdx, i);
+                if (segment.trim().length > 0) {
+                    result.push(segment);
+                }
+                startIdx = i;
+            }
+        }
+        return result;
+    }
+
     // ─── Cached text speed (avoid per-char AppSettings lookup) ───
     property real cachedTextSpeed: AppSettings.getFloat("Config_TextSpeed", 1.0)
     property bool eyeTrackingEnabled: AppSettings.getInt("Config_EyeTracking", 0) === 1
@@ -512,7 +798,7 @@ Item {
     }
 
     function updateSystemPrompt() {
-        var sysContent = systemPrompt;
+        var sysContent = getSystemPromptForLanguage(getCurrentChatLanguageIndex());
         var memCtx = MemoryManager.getMemoryContext();
         if (memCtx.length > 0) sysContent += "\n\n" + memCtx;
         var dynCtx = MemoryManager.getDynamicContext(root.turnCount);
@@ -610,11 +896,32 @@ Item {
                 }
             }
             chatInput.text = "";
+            if (typeof AchievementManager !== "undefined" && AchievementManager) {
+                AchievementManager.notifyEvent("dev_command");
+            }
             return;
         }
         if (text === "/dev motion reset") {
             root.currentEmotionTag = "NORMAL";
             chatInput.text = "";
+            if (typeof AchievementManager !== "undefined" && AchievementManager) {
+                AchievementManager.notifyEvent("dev_command");
+            }
+            return;
+        }
+        if (text === "/dev achievements reset") {
+            chatInput.text = "";
+            if (typeof AchievementManager !== "undefined" && AchievementManager) {
+                AchievementManager.resetAll();
+                AchievementManager.notifyEvent("dev_command");
+            }
+            return;
+        }
+        if (text === "/dev steiner") {
+            chatInput.text = "";
+            if (typeof AchievementManager !== "undefined" && AchievementManager) {
+                AchievementManager.notifyEvent("secret_steiner");
+            }
             return;
         }
 
@@ -629,7 +936,7 @@ Item {
         // Trim history
         if (typeof MemoryManager !== "undefined" && MemoryManager) {
             try {
-                MemoryManager.trimConversationHistory(root.conversationHistory, 30);
+                root.conversationHistory = MemoryManager.trimConversationHistory(root.conversationHistory, 30);
                 MemoryManager.recordInteraction();
             } catch (e) {
                 console.warn("[ChatPanel] MemoryManager error:", e);
@@ -735,12 +1042,12 @@ Item {
 
         MemoryManager.recordEmotion(tag);
 
-        var h = root.conversationHistory.slice();
-        h.push({ role: "assistant", content: display });
-        root.conversationHistory = h;
+        if (typeof AchievementManager !== "undefined" && AchievementManager) {
+            AchievementManager.notifyEvent("emotion", { emotion: tag });
+            AchievementManager.notifyEvent("chat", { totalInteractions: MemoryManager.totalInteractions });
+        }
 
-        // Start typewriter
-        root.currentFullText = display;
+        var h = root.conversationHistory.slice();
         root.typewriterText = display;
         root.typewriterIndex = 0;
         root.typewriterStartIndex = 0;
@@ -823,6 +1130,11 @@ Item {
         if (!root.streamEmotionParsed) {
             root.currentEmotionTag = parseEmotionTag(fullResponse || root.streamBuffer);
             MemoryManager.recordEmotion(root.currentEmotionTag);
+        }
+
+        if (typeof AchievementManager !== "undefined" && AchievementManager) {
+            AchievementManager.notifyEvent("emotion", { emotion: root.currentEmotionTag });
+            AchievementManager.notifyEvent("chat", { totalInteractions: MemoryManager.totalInteractions });
         }
 
         root.streamBuffer = display;
@@ -948,7 +1260,7 @@ Item {
     Item {
         id: keyboardHandler
         anchors.fill: parent
-        focus: root.chatState !== "inputReady"
+        focus: root.chatState !== "inputReady" && !root.menuPanelOpen
         Keys.onReturnPressed: (event) => {
             if (root.isConversationPausedByMenuState) {
                 event.accepted = true;
@@ -1007,8 +1319,10 @@ Item {
         width: 3840
         height: 2160
         anchors.horizontalCenter: parent.horizontalCenter
+        anchors.horizontalCenterOffset: miniGamePanel.visible ? parent.width * 0.28 : 0
         anchors.verticalCenter: parent.verticalCenter
         z: -1
+        Behavior on anchors.horizontalCenterOffset { NumberAnimation { duration: 450; easing.type: Easing.InOutCubic } }
         transform: Scale {
             origin.x: kurisuLive2D.width * 0.5
             origin.y: kurisuLive2D.height * 0.5
@@ -1016,9 +1330,10 @@ Item {
         }
 
         modelPath: "AmadeusKurisu5.0/reama5.0"
-        emotion: root.currentEmotionTag
-        lipSyncValue: root.isActivelySpeaking ? 1.0 : 0.0
-        spokenChar: root.isActivelySpeaking ? root.currentSpokenChar : ""
+        emotion: miniGamePanel.visible ? miniGamePanel.kurisuEmotion : root.currentEmotionTag
+        lipSyncValue: miniGamePanel.visible ? miniGamePanel.miniSpeak
+                                             : (root.isActivelySpeaking ? 1.0 : 0.0)
+        spokenChar: miniGamePanel.visible ? "" : (root.isActivelySpeaking ? root.currentSpokenChar : "")
         lightweightMode: AppSettings.getInt("Config_LightweightMode", 0) === 1
     }
 
@@ -1119,7 +1434,7 @@ Item {
     // Input panel (above dialogue)
     Rectangle {
         id: inputPanel
-        visible: root.chatState === "inputReady"
+        visible: root.chatState === "inputReady" && !miniGamePanel.visible
         anchors {
             left: parent.left; right: parent.right
             bottom: parent.bottom
@@ -1198,6 +1513,35 @@ Item {
         id: statusPanel
         anchors.fill: parent
         visible: false
+    }
+
+    MiniGamePanel {
+        id: miniGamePanel
+        anchors.fill: parent
+        visible: false
+        onClosed: chatInput.forceActiveFocus()
+    }
+
+    // ─── Mini Game Button (on Kurisu's screen) ───
+    Rectangle {
+        id: miniGameButton
+        visible: root.chatState === "inputReady" && !miniGamePanel.visible
+        anchors { right: parent.right; bottom: parent.bottom; rightMargin: 60; bottomMargin: 100 }
+        width: 140; height: 50
+        color: "#333333"
+        border.color: "#FF9900"
+        border.width: 1
+        opacity: 0.85
+        Text {
+            anchors.centerIn: parent
+            text: "MINI GAME"
+            color: "#FF9900"
+            font { family: "MS Mincho"; pixelSize: 22 }
+        }
+        MouseArea {
+            anchors.fill: parent
+            onClicked: { miniGamePanel.visible = true; miniGamePanel.forceActiveFocus(); }
+        }
     }
 
     // Expose sub-panels for MenuPanel

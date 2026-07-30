@@ -54,7 +54,7 @@ protected:
 private:
     QString m_modelPath;
     QString m_emotion;
-    float m_lipSyncValue;
+    float m_lipSyncValue = 0.0f;
     float m_eyeX = 0.0f;
     float m_eyeY = 0.0f;
     bool m_lightweightMode = false;

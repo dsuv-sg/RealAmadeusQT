@@ -221,4 +221,14 @@ Item {
     Component.onCompleted: {
         idInput.forceActiveFocus()
     }
+
+    // Clear credentials whenever the login screen is (re)shown (e.g. after logout)
+    onVisibleChanged: {
+        if (visible) {
+            idInput.text = "";
+            pwInput.text = "";
+            errorText.visible = false;
+            idInput.forceActiveFocus();
+        }
+    }
 }

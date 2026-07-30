@@ -162,6 +162,7 @@ Item {
             backLog: systemPanelRoot.backLog
             configLanguage: systemPanelRoot.configLanguage
             menuPanelOpen: systemPanelRoot.menuPanelOpen
+            chatScreenActive: systemPanelRoot.appState === "chat"
             onOpenMenu: systemPanelRoot.openMenuRequested()
         }
         Text {

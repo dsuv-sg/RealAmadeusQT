@@ -19,7 +19,7 @@ double AppSettings::getFloat(const QString &key, double defaultValue) const
 QString AppSettings::getString(const QString &key, const QString &defaultValue) const
 {
     if (key.contains(QStringLiteral("ApiKey"))) {
-        return SecureSettings::getProtectedString(const_cast<QSettings&>(m_settings), key, defaultValue);
+        return SecureSettings::getProtectedString(m_settings, key, defaultValue);
     }
     return m_settings.value(key, defaultValue).toString();
 }

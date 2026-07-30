@@ -10,6 +10,7 @@ Item {
     property bool menuOpen: false
     property bool isLoggedIn: false
     property var  backLog: null
+    property var  chatPanelRef: null
     property int  configLanguage: AppSettings.getInt("Config_Language", 0)
 
     property bool isSubPanelOpen: (configPanel ? (configPanel.visible || (root.backLog && root.backLog.visible) || statusPanelMenu.visible || changeLogPanel.visible || helpPanel.visible || confirmDialog.visible) : false)
@@ -304,6 +305,7 @@ Item {
         id: configPanel
         anchors.fill: parent; visible: false
         configLanguage: root.configLanguage
+        chatPanelRef: root.chatPanelRef
         onClosed: { menuFocus.forceActiveFocus(); }
     }
     StatusPanel {

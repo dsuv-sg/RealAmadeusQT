@@ -160,7 +160,7 @@ Item {
 
                 Text { height: 50; text: mixedTextHtml(title, 36); color: "#FF9900"; font.pixelSize: 36; textFormat: Text.RichText; horizontalAlignment: Text.AlignLeft; verticalAlignment: Text.AlignTop; }
                 Rectangle { width: parent.width; height: 1; color: "#FF9900";}
-                Text { text: mixedTextHtml(desc, 28); color: "#E6E6E6"; font.pixelSize: 28; textFormat: Text.RichText }
+                Text { text: mixedTextHtml(desc, 28); color: "#E6E6E6"; font.pixelSize: 28; textFormat: Text.RichText; horizontalAlignment: Text.AlignLeft }
             }
 
             HelpEntry {

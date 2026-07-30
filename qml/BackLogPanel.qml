@@ -225,6 +225,10 @@ Item {
         if (root.visible) Qt.callLater(scrollToBottom);
     }
 
+    function clearLog() {
+        logModel.clear();
+    }
+
     function scrollToBottom() {
         logFlickable.contentY = Math.max(0, logFlickable.contentHeight - logFlickable.height);
     }
@@ -329,7 +333,7 @@ Item {
         policy: T.ScrollBar.AsNeeded
         visible: logFlickable.contentHeight > logFlickable.height
         parent: root
-        x: logFlickable.x + logFlickable.width + 30
+        anchors { left: logFlickable.right; leftMargin: 30 }
         y: logFlickable.y
         height: logFlickable.height
         padding: 0; topPadding: 0; bottomPadding: 0

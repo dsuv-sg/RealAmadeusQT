@@ -27,12 +27,12 @@ QByteArray SecureSettings::deriveKey()
 }
 
 // ─────────────────────────────────────────────────────
-// AES-256-CBC fallback (cross-platform)
+// XOR-based obfuscation fallback (cross-platform)
+// NOTE: This is NOT real AES. On Windows, DPAPI is used instead.
+// This fallback provides only basic obfuscation for non-Windows platforms.
 // ─────────────────────────────────────────────────────
 QByteArray SecureSettings::encryptAesCbc(const QString &plainText)
 {
-    // Simple XOR-based obfuscation with key derivation
-    // (Full AES would require OpenSSL; this provides reasonable protection)
     const QByteArray key = deriveKey();
     const QByteArray plain = plainText.toUtf8();
 

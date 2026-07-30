@@ -6,7 +6,7 @@
 
 /// SecureSettings - Encrypted storage for sensitive data (API keys, tokens).
 /// On Windows: uses DPAPI (CryptProtectData/CryptUnprotectData).
-/// Fallback: AES-256-CBC with machine-specific key derivation.
+/// Fallback: XOR obfuscation with machine-specific key derivation (NOT real AES).
 /// Compatible with Unity SecurePrefs (same "enc:v1:" prefix scheme).
 class SecureSettings
 {

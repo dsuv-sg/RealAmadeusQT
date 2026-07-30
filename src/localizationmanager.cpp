@@ -11,7 +11,7 @@ LocalizationManager::LocalizationManager(AppSettings *settings, QObject *parent)
     , m_settings(settings)
     , m_languageIndex(0)
 {
-    m_languages = {"ja", "en", "zh", "ko", "es", "fr", "de", "ru", "uk", "pt", "tr"};
+    m_languages = {"ja", "en", "zh", "ko", "es", "fr", "de", "ru", "uk", "pt", "tr", "he", "ar"};
 
     if (m_settings) {
         m_languageIndex = m_settings->getInt("Config_Language", 0);

@@ -186,9 +186,9 @@ QString AIService::getApiKey(int provider) const
 {
     QMutexLocker locker(&m_settingsMutex);
     QString keyKey = QString("Config_ApiKey_%1").arg(provider);
-    QString key = SecureSettings::getProtectedString(const_cast<QSettings&>(m_settings), keyKey, "");
+    QString key = SecureSettings::getProtectedString(m_settings, keyKey, "");
     if (key.isEmpty())
-        key = SecureSettings::getProtectedString(const_cast<QSettings&>(m_settings), "Config_ApiKey", "");
+        key = SecureSettings::getProtectedString(m_settings, "Config_ApiKey", "");
     return key;
 }
 
@@ -425,7 +425,7 @@ QString AIService::extractStreamToken(const QByteArray &chunk) const
 // ─────────────────────────────────────────────────────
 // SSE processing helper
 // ─────────────────────────────────────────────────────
-void AIService::processSSEData(const QByteArray &data, QByteArray &/*buf*/,
+void AIService::processSSEData(const QByteArray &data,
                                QString &fullResponse, bool &done)
 {
     QList<QByteArray> lines = data.split('\n');
@@ -500,7 +500,8 @@ void AIService::sendChat(const QVariantList &messages)
         QString baseUrl = customUrl.isEmpty()
             ? "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent"
             : customUrl;
-        req.setUrl(QUrl(baseUrl + "?key=" + apiKey));
+        req.setUrl(QUrl(baseUrl));
+        req.setRawHeader("x-goog-api-key", apiKey.toUtf8());
         req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
         body = buildGeminiBody(messages);
         break;
@@ -531,7 +532,11 @@ void AIService::sendChat(const QVariantList &messages)
     }
     case PROVIDER_OLLAMA: {
         if (model.isEmpty()) model = "llama3";
-        QString ollamaHost = m_settings.value("Config_OllamaHost", "http://localhost:11434").toString().trimmed();
+        QString ollamaHost;
+        {
+            QMutexLocker locker(&m_settingsMutex);
+            ollamaHost = m_settings.value("Config_OllamaHost", "http://localhost:11434").toString().trimmed();
+        }
         if (ollamaHost.isEmpty()) ollamaHost = "http://localhost:11434";
         QString host = customUrl.isEmpty() ? ollamaHost + "/v1/chat/completions" : customUrl;
         req.setUrl(QUrl(host));
@@ -549,10 +554,13 @@ void AIService::sendChat(const QVariantList &messages)
         break;
     }
     case PROVIDER_VERTEX: {
-        // Vertex: mirror Unity flow (gcloud token with cache and path probing).
-        // Token acquisition is done asynchronously to avoid UI freezing.
-        QString projectId = m_settings.value("Config_VertexProject", "").toString();
-        QString location  = m_settings.value("Config_VertexLocation", "us-central1").toString();
+        QString projectId;
+        QString location;
+        {
+            QMutexLocker locker(&m_settingsMutex);
+            projectId = m_settings.value("Config_VertexProject", "").toString();
+            location  = m_settings.value("Config_VertexLocation", "us-central1").toString();
+        }
         const QString lowerModel = model.toLower();
         QString vertexModel = model;
         if (vertexModel.isEmpty() || lowerModel.startsWith("gpt")) {

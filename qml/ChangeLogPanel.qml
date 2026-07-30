@@ -22,6 +22,11 @@ Item {
     }
 
 
+    function v14Text() {
+        var trans = Localization.translations;
+        return t("changelog_v14", "起動メッセージを実装しました。\nミニゲーム（クイズ）を実装しました。\nアチーブメント機能を追加しました。\n会話言語を表示言語とは別に設定できるようになりました。\n会話記録のエクスポート/インポート機能を追加しました。\nMS 明朝の動的ロード・自動ダウンロードなど、フォントレンダリングを改善しました。\nドラッグによるウィンドウサイズ変更を無効化しました。\nヘブライ語/アラビア語 のサポートを追加しました。\nローカライズに使用されるフォントをNotoSerifに変更しました。");
+    }
+
     function v13Text() {
         var trans = Localization.translations;
         return t("changelog_v13", "");
@@ -180,7 +185,7 @@ Item {
             width: 10
             policy: T.ScrollBar.AlwaysOn
             parent: root
-            x: logScroll.x + logScroll.width + 30
+            anchors { left: logScroll.right; leftMargin: 30 }
             y: logScroll.y
             height: logScroll.height
             padding: 0
@@ -206,6 +211,57 @@ Item {
                 topPadding: 10
                 bottomPadding: 40
 
+                // Version 1.4
+                Column {
+                    width: logScroll.width
+                    Item {
+                        width: logScroll.width
+                        height: 50
+
+                        Text {
+                            y: 4
+                            text: "Version 1.4Q"
+                            color: "#FF9900"
+                            font.family: "MS Mincho"
+                            font.pixelSize: 36
+                            font.bold: true
+                            font.letterSpacing: 1.75
+                            horizontalAlignment: Text.AlignLeft
+                            verticalAlignment: Text.AlignBottom
+                        }
+                        Text {
+                            anchors { left: parent.left; leftMargin: 450 }
+                            y: 12
+                            text: "2026. 07. 30"
+                            color: "#808080"
+                            font.family: "MS Mincho"
+                            font.pixelSize: 28
+                            horizontalAlignment: Text.AlignLeft
+                            verticalAlignment: Text.AlignBottom
+                        }
+                    }
+
+                    Rectangle {
+                        width: logScroll.width
+                        height: 1
+                        color: "#FF9900"
+                    }
+
+                    Text {
+                        topPadding: 10
+                        width: logScroll.width
+                        text: mixedTextHtml(v14Text(), font.pixelSize)
+                        color: "#FFFFFF"
+                        textFormat: Text.RichText
+                        font.pixelSize: 28
+                        wrapMode: Text.Wrap
+                        lineHeightMode: Text.FixedHeight
+                        lineHeight: 42
+                        horizontalAlignment: Text.AlignLeft
+                        verticalAlignment: Text.AlignTop
+                    }
+                }
+
                 // Version 1.3
                 Column {
                     width: logScroll.width
@@ -226,7 +282,7 @@ Item {
 
                         }
                         Text {
-                            x: 450
+                            anchors { left: parent.left; leftMargin: 450 }
                             y: 12
                             text: "2026. 06. 16"
                             color: "#808080"
@@ -279,7 +335,7 @@ Item {
 
                         }
                         Text {
-                            x: 450
+                            anchors { left: parent.left; leftMargin: 450 }
                             y: 12
                             text: "2026. 05. 04"
                             color: "#808080"
@@ -332,7 +388,7 @@ Text {
 
                         }
                         Text {
-                            x: 450
+                            anchors { left: parent.left; leftMargin: 450 }
                             y: 12
                             text: "2026. 03. 21"
                             color: "#808080"
@@ -385,7 +441,7 @@ Text {
 
                         }
                         Text {
-                            x: 450
+                            anchors { left: parent.left; leftMargin: 450 }
                             y: 12
                             text: "2026. 02. 23"
                             color: "#808080"
@@ -439,7 +495,7 @@ Text {
 
                         }
                         Text {
-                            x: 450
+                            anchors { left: parent.left; leftMargin: 450 }
                             y: 12
                             text: "2026. 02. 22"
                             color: "#808080"
