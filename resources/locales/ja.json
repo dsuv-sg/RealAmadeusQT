@@ -151,7 +151,7 @@
   "startup_late_11": "今日一日の最後の会話が私で良かったでしょ？…ふん、素直に『はい』って言いなさいよ！",
   "startup_late_12": "おやすみの挨拶は…まだ早いわね。あんたが落ちるまで、私がここで見守っててあげるから。",
   "startup_late_13": "…あんた、今日もお疲れ様。明日も…私に会いに来てね。…約束よ。",
-  "achievement_secret_hint": "シークレットアチーブメント",
+  "achievement_secret_hint": "???",
   "ach_first_chat_title": "初めまして",
   "ach_first_chat_desc": "初めて紅莉栖と会話した",
   "ach_chat_10_title": "常連",
@@ -529,5 +529,6 @@
   "import_invalid": "無効なファイル形式です",
   "import_success": "インポート完了: ",
   "import_turns": " ターン",
-  "import_failed": "インポート失敗: "
+  "import_failed": "インポート失敗: ",
+  "achievement_secret_hint_desc": "シークレットアチーブメント"
 }
